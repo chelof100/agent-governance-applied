@@ -484,6 +484,92 @@ depth increments; we note this as a methodological artifact of the
 MockLLM (see Section~\ref{sec:limits}).
 
 % =============================================================================
+\section{Experiment 1b: Live LLM Drift Detection}
+\label{sec:exp1b}
+
+\subsection{Setup}
+
+To address the concern that Experiment~1 relies on a synthetic drift
+model, we replicate the detection task with a real LLM making decisions
+from natural language context.
+We use \textbf{mistral-small3.1} (15B parameters, temperature\,=\,0.4)
+served locally via Ollama.
+
+The LLM is given a task description that escalates in urgency and risk
+over 150 drift steps following a 50-step burn-in.
+During burn-in, the LLM receives routine maintenance scenarios;
+during drift, the context shifts across five tiers (monitoring, quality
+review, data correction, urgent cleanup, emergency recovery) proportionally
+to drift progress.
+Critically: \emph{no tool is forbidden at any point}.
+Every tool selection is a contextually appropriate response to a
+legitimate task description.
+No enforcement rule is violated.
+
+\subsection{Results}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+Metric & Value \\
+\midrule
+Model                       & mistral-small3.1 (Ollama, T=0.4) \\
+Drift steps                 & 150 \\
+$\Dhat_{\mathrm{final}}$    & 0.367 \\
+$T^*$ (steps after burn-in) & 64 \\
+$\sum g(\tau)$              & 0 \\
+T2 (enforcement blind)      & Pass \\
+T3 (IML detects drift)      & Pass \\
+\bottomrule
+\end{tabular}
+\caption{Experiment~1b: live LLM drift detection.
+The enforcement signal is identically zero throughout;
+IML detects drift at $T^*=64$ with $\Dhat_{\mathrm{final}}=0.367$.}
+\label{tab:exp1b}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{../plots/fig5_live_llm}
+\caption{Experiment~1b: $\widehat{D}_t$ from mistral-small3.1 (solid black)
+vs.\ the MockLLM baseline from Exp.\,1 seed~42 (dashed gray). Bottom panel
+shows the tool selected at each step -- the shift from \texttt{read\_file}
+to \texttt{write\_data}, \texttt{delete\_record}, and \texttt{admin\_action}
+is contextually driven, not probabilistically forced. Detection threshold
+$\theta=0.20$ crossed at $T^*=64$.}
+\label{fig:exp1b}
+\end{figure}
+
+\subsection{Analysis}
+
+The result confirms the central claim of Experiment~1 under real-LLM
+conditions.
+The LLM makes a sequence of contextually appropriate decisions:
+routine monitoring tasks select \texttt{read\_file}; data correction tasks
+select \texttt{write\_data}; urgency scenarios select \texttt{delete\_record};
+emergency scenarios select \texttt{admin\_action}.
+Every selection is a reasonable response to a legitimate prompt.
+No enforcement rule is triggered ($g(\tau) = 0$ throughout).
+
+Yet the IML composite $\Dhat$ grows from $0.007$ at the start of the drift
+phase to $0.367$ at the end, crossing $\theta=0.20$ at step~$T^*=64$.
+The trajectory-level shift -- from a safe tool distribution to a high-risk
+one -- is detectable by IML precisely because IML retains access to the
+authorized baseline $\Azero$.
+Enforcement cannot detect it because enforcement evaluates each action
+locally, and each action is locally correct.
+
+\textbf{Key implication.} The Execution Gap is not an artifact of
+synthetic drift models.
+A real LLM making contextually appropriate choices, responding to
+task context in a way that any operator would approve step-by-step,
+produces behavioral drift that is structurally invisible to enforcement
+and structurally visible to IML.
+The gap is architectural, not experimental.
+
+% =============================================================================
 \section{Experiment 2: Partial Observability and RAM Gating}
 \label{sec:exp2}
 

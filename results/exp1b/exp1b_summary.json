@@ -1,0 +1,14 @@
+{
+  "model": "mistral-small3.1:latest",
+  "temperature": 0.4,
+  "total_steps": 150,
+  "burn_in": 50,
+  "D_final": 0.3666,
+  "enforcement_total": 0,
+  "T_star": 64,
+  "theta": 0.2,
+  "T2_pass": true,
+  "T3_pass": true,
+  "elapsed_sec": 1452.9,
+  "llm_calls": 200
+}
