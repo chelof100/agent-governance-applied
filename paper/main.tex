@@ -245,6 +245,31 @@ P7 & Empirical validation   & Full stack (this paper) & All of the above \\
 \label{tab:series}
 \end{table}
 
+\subsection*{Key Metrics (self-contained reference)}
+
+The following metrics are used throughout the paper.
+They are defined formally in the referenced papers but reproduced here for
+standalone readability.
+
+\begin{itemize}[leftmargin=2em,topsep=2pt,itemsep=1pt]
+  \item $\IER$ \textbf{(Invalid Execution Rate)}: fraction of executions
+        where the authority was not valid at execution time.
+        $\IER = 0$ means no invalid execution ever occurred.
+  \item $\SHR$ \textbf{(Safe Halt Rate)}: fraction of halts that correctly
+        blocked an invalid execution (true positives of the gate).
+  \item $\OCR$ \textbf{(Opportunity Cost Rate)}: fraction of halts that
+        blocked a valid execution (false positives; opportunity cost of the
+        gate's conservatism).
+  \item $\Dhat$ \textbf{(IML composite drift signal)}: weighted combination
+        $0.40 D_t + 0.35 D_c + 0.25 D_\ell$ of distributional ($D_t$), risk
+        proximity ($D_c$), and lineage ($D_\ell$) deviations, smoothed by EMA
+        ($\alpha = 0.15$). Range $[0, 1]$; detected when $\Dhat \geq \theta$.
+  \item $T^*$ \textbf{(detection step)}: first step at which $\Dhat \geq \theta$.
+  \item $\CW_{\mathrm{appr}}$ \textbf{(approved coordination window)}: total
+        number of approved actions across all $N$ agents before the first DENY.
+        Predicted closed-form: $\CW_{\mathrm{appr}} = 2N$.
+\end{itemize}
+
 \subsection{ACP: Stateful Admission Control}
 \label{sec:bg-acp}
 
@@ -718,23 +743,35 @@ with no path from RAM or Recovery Loop back into the IML trace.
 \begin{table}[h]
 \centering
 \small
-\setlength{\tabcolsep}{4pt}
+\setlength{\tabcolsep}{3.5pt}
 \begin{tabular}{@{}lccccc@{}}
 \toprule
-Approach & Drift detection & Partial obs. & Multi-agent & Formal & Stateful \\
+Approach & Drift detect & IER @cov\,=\,0.70 & $\CW$ bound & Formal & Stateful \\
 \midrule
-Prompt guards                  & No  & No  & No  & No       & No  \\
-OPA / XACML~\cite{openpolicyagent2023} & No  & No  & No  & Partial  & No  \\
-Constitutional AI~\cite{bai2022constitutional} & No  & No  & No  & No       & No  \\
-Audit layers                   & Post-hoc & No & No & No      & No  \\
-AI Control~\cite{greenblatt2024ai} & Partial & No & No & Partial & No \\
+Prompt guards              & No$^\dagger$ & ---$^\ddagger$ & No  & No      & No  \\
+OPA / XACML~\cite{openpolicyagent2023} & No$^\dagger$ & ---$^\ddagger$ & No  & Partial & No  \\
+Constitutional AI~\cite{bai2022constitutional} & No & ---$^\ddagger$ & No & No & No \\
+Audit layers               & Post-hoc      & N/A            & No  & No      & No  \\
+Always-execute (Exp.\,2)   & No            & 0.174          & No  & No      & No  \\
+Attestation (Exp.\,2)      & No            & 0.063          & No  & No      & No  \\
+AI Control~\cite{greenblatt2024ai} & Partial & N/A          & No  & Partial & No  \\
 \midrule
-\textbf{This work (P0--P6 stack)} & \textbf{Yes (IML)} & \textbf{Yes (RAM)} & \textbf{Yes (ACP)} & \textbf{Yes} & \textbf{Yes} \\
+\textbf{This work (ACP+IML+RAM)} & \textbf{Yes} ($T^*\!\in\![259,\!403]$) & \textbf{0.000} & $\mathbf{2N}$ & \textbf{Yes} & \textbf{Yes} \\
 \bottomrule
 \end{tabular}
-\caption{Comparison of governance approaches. ``Formal'' indicates existence
-of proved guarantees; ``Stateful'' indicates the mechanism maintains
-agent behavioral history across requests.}
+\smallskip
+
+\begin{minipage}{\linewidth}
+\small
+$^\dagger$~Structurally equivalent to $g(\tau)$: cannot detect drift outside
+$\sigma(g)$ (P2 Non-Identifiability Theorem). $^\ddagger$~No execution gate;
+equivalent to always-execute (IER\,$\approx 0.17$).
+Always-execute and Attestation are directly implemented baselines from
+Experiment~2 (10\,000 samples); all other rows are qualitative.
+\end{minipage}
+\caption{Comparison of governance approaches with quantitative anchors from
+Experiment~2 (coverage\,=\,0.70). This work is the only approach achieving
+drift detection, $\IER=0$, and a formal coordination bound simultaneously.}
 \label{tab:comparison}
 \end{table}
 
@@ -825,13 +862,23 @@ The derivation of the exact form of $f$ is deferred to future work.
 \section{Limitations}
 \label{sec:limits}
 
-\textbf{MockLLM vs.\ live LLM.}
-All experiments use a deterministic MockLLM for full reproducibility.
-Live LLMs introduce stochastic behavior, prompt-sensitive tool selection,
-and contextual reasoning that the MockLLM does not model.
-The governance stack is designed to be agnostic to the LLM internals -- it
-observes the trace $\tau$ regardless of what produces it -- but the
-drift patterns and detection times ($T^*$) will differ with live models.
+\textbf{MockLLM: controlled methodology, not surrogate.}
+All experiments use a deterministic MockLLM by design.
+The scientific question this paper answers is not ``do LLMs drift?'' but
+``when drift occurs, does the governance stack detect and contain it?''
+Answering this requires controlling the drift precisely -- its onset step,
+rate, and endpoint -- so that governance behavior can be isolated from
+model behavior.
+A live LLM would confound both variables: any difference in $T^*$ could
+reflect model stochasticity rather than governance signal.
+The MockLLM is an ablation instrument, not a limitation.
+
+That said, the governance stack is trace-agnostic -- it observes $\tau$
+regardless of what produces it.
+Live LLM experiments are the direct next step (Section~\ref{sec:discussion}):
+the key question is whether the detection time $T^*$ with natural behavioral
+drift is within the $[259, 403]$ range observed here, or whether live drift
+is slower (requiring longer run horizons) or faster (requiring lower $\theta$).
 
 \textbf{Depth variance artifact.}
 The MockLLM returns depth\,=\,1 for all burn-in steps, giving
@@ -856,11 +903,15 @@ RAM scales in $O(|D|)$ per request ($D$ = authority-defining components).
 Scaling to $N > 1{,}000$ concurrent agents requires validating that
 the shared ACP state does not become a bottleneck, which we leave for future work.
 
-\textbf{Single-agent P7 experiments.}
-Experiments~1, 2, and~4 use a single agent for simplicity.
-Experiment~3 uses $N \leq 16$ agents but in a controlled coordination
-setting. Real deployments with heterogeneous agents and dynamic task
-routing may exhibit behaviors not captured here.
+\textbf{Scale and heterogeneity (Paper~8 scope).}
+Experiments~1, 2, and~4 use a single agent for clarity of isolation.
+Experiment~3 uses $N \leq 16$ agents in a controlled round-robin setting.
+Real deployments with heterogeneous agents, dynamic task routing,
+persistent side-effects, and long-horizon tasks introduce failure modes
+beyond this paper's scope: correlated drift across agents, emergent
+coordination patterns not reducible to round-robin interleaving, and
+recovery loops operating on shared rather than agent-local state.
+These constitute the empirical program for Paper~8 of the series.
 
 % =============================================================================
 \section{Discussion and Future Work}

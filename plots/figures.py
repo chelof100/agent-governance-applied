@@ -35,17 +35,19 @@ plt.rcParams.update({
     "axes.spines.right":False,
 })
 
+# B&W-friendly palette: distinguishable by both color and line style/marker
+# Primary: solid black/dark gray; secondary: dashed; tertiary: dotted
 COLORS = {
-    "dhat":   "#2c7bb6",
-    "enf":    "#d7191c",
-    "ram":    "#1a9641",
-    "att":    "#fdae61",
-    "always": "#d7191c",
-    "halt":   "#d7191c",
-    "resume": "#1a9641",
-    "admit":  "#2c7bb6",
-    "deny":   "#d7191c",
-    "escal":  "#fdae61",
+    "dhat":   "#1a1a1a",   # near-black  (solid line)
+    "enf":    "#555555",   # dark gray   (fill)
+    "ram":    "#1a1a1a",   # black       (solid, circle marker)
+    "att":    "#888888",   # mid gray    (dashed, triangle marker)
+    "always": "#555555",   # dark gray   (solid, square marker)
+    "halt":   "#1a1a1a",   # black ticks
+    "resume": "#666666",   # gray ticks
+    "admit":  "#333333",   # dark
+    "deny":   "#1a1a1a",   # black X
+    "escal":  "#888888",   # gray
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -173,13 +175,13 @@ def fig3_ier_coverage():
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.5, 3.0))
 
-    # Left: IER comparison
-    ax1.plot(covs, always_ier, color=COLORS["always"], lw=1.5, ls="-",
+    # Left: IER comparison — B&W distinguishable by line style + marker
+    ax1.plot(covs, always_ier, color=COLORS["always"], lw=1.5, ls=(0,(3,1,1,1)),
              marker="s", ms=5, label="Always-execute")
     ax1.plot(covs, att_ier,    color=COLORS["att"],    lw=1.5, ls="--",
              marker="^", ms=5, label="Attestation")
     ax1.plot(covs, ram_ier,    color=COLORS["ram"],    lw=2.0, ls="-",
-             marker="o", ms=5, label="RAM (this work)")
+             marker="o", ms=6, label="RAM (this work)")
     ax1.axhline(0, color="gray", lw=0.5, ls=":")
     ax1.set_xlabel("Observation Coverage")
     ax1.set_ylabel("IER (Invalid Execution Rate)")
