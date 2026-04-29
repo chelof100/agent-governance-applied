@@ -7,3 +7,12 @@ results/
 !requirements.txt
 venv/
 .venv/
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.fls
+paper/*.fdb_latexmk
+paper/main.pdf
