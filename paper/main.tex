@@ -116,6 +116,8 @@ $\Dhat$ bounded in $[0.27,0.34]$ over 2000 steps, liveness holds, and no
 deadlock occurs.
 We also report three empirical refinements to the formal framework discovered
 during implementation.
+The open-source implementation provides a deployable blueprint for
+practitioners integrating runtime governance into LangGraph-based agent systems.
 Code and data: \url{https://github.com/chelof100/agent-governance-applied}.
 This is Paper~7 of the 8-paper Agent Governance Series.
 \end{abstract}
@@ -192,7 +194,7 @@ LangGraph~\cite{langgraph2024} StateGraph agent, and run four experiments --
 one per failure dimension, plus a full-stack integration -- on a deterministic
 but realistic agent workflow with five tools spanning the full risk spectrum.
 
-The results are unambiguous: the stack closes the gap.
+The results are unambiguous within our experimental setup: the stack closes the gap.
 Compliant drift is detected while enforcement sees nothing.
 Execution validity is guaranteed at every coverage level.
 Coordination amplification is bounded by the formal prediction.
@@ -414,7 +416,10 @@ Each component is wired into the graph as a stateful observer:
 We run 500 steps (50 burn-in, 450 drift) with the MockLLM inducing
 gradual tool-selection drift toward high-risk tools, while each individual
 tool call satisfies all local rules ($g(\tau) = 0$ throughout).
-The IML threshold for detection is $\theta = 0.20$.
+The IML threshold $\theta = 0.20$ follows P2~\S4.3, where it is calibrated
+for a 500-step detection horizon against the assumed burn-in distribution:
+at this threshold, the finite detection delay theorem guarantees $T^* < \infty$
+provided the drift endpoint $D_\infty > \theta$.
 Results are reported for six seeds.
 
 \subsection{Results}
@@ -471,6 +476,22 @@ The extension is qualitatively significant: the P2 experiment used two
 tool categories with a two-node graph; this experiment uses five tools with
 differentiated risk scores in a three-node workflow, and the result holds
 across all seeds.
+
+\textbf{Comparison with a naive baseline.}
+A natural alternative to the IML composite is a simple rolling mean of
+the raw risk score, with a fixed offset threshold: $\bar{\RS}_t > \bar{\RS}_{\mathrm{burn}} + \delta$.
+For seed~42, the burn-in mean risk score is $\approx 0.23$; setting $\delta = 0.10$
+gives a naive threshold of $0.33$.
+The naive detector fires at step $T^*_{\mathrm{naive}} \approx 83$ --
+much earlier than IML's $T^* = 353$.
+This earlier trigger is not an advantage: the naive threshold is calibrated
+by an arbitrary offset rather than against $\Azero$, so it conflates
+a slow natural increase in mean risk (which may be legitimate) with genuine
+trajectory divergence.
+IML's composite $\Dhat$ is anchored to the admission-time snapshot $\Azero$
+and combines three independent signals ($D_t$, $D_c$, $D_\ell$),
+making its detection formally grounded (P2 finite detection delay theorem)
+and resistant to single-signal false positives.
 
 The $D_c$ component (mean risk proximity) is the primary driver of $\Dhat$
 growth: as the tool distribution shifts toward \texttt{write\_data} and
@@ -733,6 +754,10 @@ The ACP is configured with high thresholds ($\theta_a = 200$,
 $\theta_d = 500$, $N_1 = N_3 = 500$) to serve as a long-horizon
 audit gate, allowing the RAM and Recovery Loop layers to be the primary
 execution filters for this experiment.
+This stress-test configuration is intentional: by moving the ACP admission
+boundary far above the tool risk scores, we isolate the execution-validity
+and recovery layers so their behavior under combined drift and partial
+observability can be characterized without ACP denials masking HALT/RESUME dynamics.
 The Recovery Loop uses $k_{\max} = 5$ attempts, $c_0 = 0.30$,
 $\Delta c = 0.15$.
 
@@ -823,7 +848,7 @@ $\mathrm{IML} \to \mathrm{RAM} \to \mathrm{RecoveryLoop} \to \mathrm{RAM}$,
 with no path from RAM or Recovery Loop back into the IML trace.
 
 % =============================================================================
-\section{Comparison with Existing Approaches}
+\section{Comparison with Existing Governance Mechanisms}
 \label{sec:comparison}
 
 \begin{table}[h]
@@ -888,6 +913,15 @@ The Non-Identifiability Theorem, Execution Validity ($\IER=0$), and
 $\CW_{\mathrm{appr}} = 2N$ are proved results; this paper provides the
 first empirical confirmation of all three simultaneously.
 
+\textbf{Note on AI Control.}
+AI Control~\cite{greenblatt2024ai} as described focuses on human oversight
+protocols and behavioral red-teaming rather than automated runtime state monitoring.
+Its current formulation is stateless at the monitoring layer and does not
+accumulate a behavioral baseline for drift comparison.
+Stateful extensions -- retaining an admission-time behavioral snapshot and
+applying an IML-style composite -- could, in principle, address compliant drift;
+we treat this as a fair-play caveat rather than a permanent structural limitation.
+
 % =============================================================================
 \section{Empirical Refinements to the Theory}
 \label{sec:refinements}
@@ -943,6 +977,16 @@ but also raises the asymptote under non-zero stationary drift).
 For $\alpha = 0$, $\Dhat$ converges to the instantaneous raw signal.
 For $\alpha \to 1$, $\Dhat$ never converges (permanent memory of initial state).
 The derivation of the exact form of $f$ is deferred to future work.
+
+\textbf{Deployment guidance.}
+Practitioners should calibrate $\alpha$ against the expected drift horizon
+on held-out traces: lower values ($\alpha \approx 0.05$) suit systems
+where abrupt, short-horizon drift is the primary concern and fast reaction
+is more important than noise suppression;
+higher values ($\alpha \approx 0.30$) suit systems where gradual long-horizon
+drift dominates and a stable running signal is preferable.
+This is a standard hyperparameter search with a monotone objective:
+longer expected drift horizon $\Rightarrow$ higher optimal $\alpha$.
 
 % =============================================================================
 \section{Limitations}
