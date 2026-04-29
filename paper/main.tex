@@ -64,8 +64,9 @@
 \newcommand{\RS}{\mathrm{RS}}
 
 % --- Title ---
-\title{\textbf{Runtime Governance for LLM-Based Agent Systems}\\[4pt]
-       \large Applying the Agent Governance Stack to Real Agentic Workflows}
+\title{\textbf{Closing the Execution Gap in LLM Agent Systems}\\[4pt]
+       \large Empirical Evidence for Compliant Drift, Partial Observability,
+       and Integrated Runtime Governance}
 
 \author{Marcelo Fernandez\\
         \small TraslaIA\\
@@ -78,37 +79,44 @@
 
 % --- Abstract -----------------------------------------------------------------
 \begin{abstract}
-Autonomous agent systems built on large language models require runtime
-governance mechanisms that are formal, stateful, and composable -- not merely
-heuristic.
-Existing approaches (prompt guards, OPA/XACML policy engines, audit layers)
-share a common structural weakness: they evaluate actions locally and cannot
-detect behavioral drift that is invisible within any individual rule evaluation.
-This paper presents the first empirical validation of the complete Agent
-Governance Stack -- a seven-paper formal series (P0--P6) covering atomic
-decision boundaries, stateful admission control (ACP), invariant measurement
-(IML), governance structure, reconstructive authority (RAM), and its
-operationalization -- applied to real \textbf{LangGraph} agent workflows.
-We implement all four components of the stack (ACP gate, IML monitor, RAM
-gate, Recovery Loop) as a Python library instrumented into a three-node
-LangGraph StateGraph, and run four targeted experiments.
-Our results confirm the theoretical predictions with zero deviation:
-(1)~IML detects compliant drift invisible to ACP in all six seeds, with
-detection step $T^*\in[259,403]$;
-(2)~the RAM gate achieves $\IER=0.000$ across all state-coverage levels
-$(0.10$--$1.00)$, versus baseline $\IER\in[0.032,\,0.185]$;
-(3)~the ACP coordination window replicates $\CW_{\mathrm{appr}}=2N$ with
-zero deviation for $N\in\{2,4,8,16\}$ agents, confirming Paper~1
-Experiment~13 in Python/LangGraph;
-(4)~the full integrated stack converges with $\Dhat$ bounded in $[0.27,0.34]$
-over 2000 steps, liveness holds, and no deadlock occurs.
-We also report three empirical findings that refine the theoretical
-framework: a type mismatch between ACP's baseline-RS model and
-tool-intrinsic risk scores, a recoverable-vs-irresolvable HALT
-classification for the conditional liveness theorem, and an
-EMA-parameter dependency in the convergence bound.
-Code and data are available at:
-\url{https://github.com/chelof100/agent-governance-applied}.
+A correctly governed agent system can still fail.
+An agent may select only actions that each individually satisfy every
+applicable rule, while its behavioral trajectory drifts silently toward
+high-risk territory.
+An agent may request execution of a privileged action at a moment when the
+authority-defining state is partially unobservable, making it impossible to
+confirm validity without either blocking or accepting invalid executions.
+Multiple agents may each stay within their individual policy budgets while
+collectively exhausting the system's coordination capacity.
+We call the structural interval in which these failures occur the
+\emph{Execution Gap}: the space between what governance validates at decision
+boundaries and what agents actually do in execution.
+
+Existing approaches -- prompt guards, OPA/XACML policy engines, Constitutional
+AI, and audit layers -- are \emph{structurally incapable} of closing this gap.
+They evaluate actions locally and statelessly; the Execution Gap is a
+trajectory-level, stateful phenomenon.
+
+This paper provides the first empirical demonstration that the Execution Gap
+is real, measurable, and closeable.
+We implement the complete Agent Governance Stack -- seven formal papers
+(P0--P6) covering atomic decision boundaries, stateful admission control
+(ACP), invariant measurement (IML), governance structure, and reconstructive
+authority (RAM) -- as a Python library instrumented into a \textbf{LangGraph}
+StateGraph, and run four experiments that each isolate one dimension of the gap.
+Our central finding: \emph{the enforcement signal remains identically zero while
+the IML composite $\Dhat$ grows monotonically}, crossing the detection
+threshold in $T^*\in[259,403]$ steps across all six seeds -- direct
+experimental proof of compliant drift.
+Additionally: the RAM gate achieves $\IER=0.000$ at every state-coverage level
+$(0.10$--$1.00)$, versus baseline $\IER\in[0.032,\,0.185]$; the ACP
+coordination window replicates $\CW_{\mathrm{appr}}=2N$ with zero deviation
+for $N\in\{2,4,8,16\}$ agents; and the integrated stack converges with
+$\Dhat$ bounded in $[0.27,0.34]$ over 2000 steps, liveness holds, and no
+deadlock occurs.
+We also report three empirical refinements to the formal framework discovered
+during implementation.
+Code and data: \url{https://github.com/chelof100/agent-governance-applied}.
 This is Paper~7 of the 8-paper Agent Governance Series.
 \end{abstract}
 
@@ -126,58 +134,87 @@ coordinating across shared resources~\cite{yao2023react,weng2023agent}.
 The governance question -- \emph{who controls what the agent may do, and how is
 that control enforced at runtime?} -- has grown urgent as these systems move
 from research prototypes to production pipelines.
+Yet passing all governance checks is not the same as being safe.
+This paper is about the difference.
 
-Current approaches share a common design pattern: they evaluate agent actions
-locally, at the point of execution, against a fixed rule set.
-\emph{Prompt guards} check model outputs for policy violations before
-passing them downstream.
+\subsection*{The Execution Gap}
+
+Current governance approaches share a common design: they evaluate actions
+at fixed decision boundaries, locally, against a rule set.
+\emph{Prompt guards} check model outputs before passing them downstream.
 \emph{OPA/XACML policy engines}~\cite{openpolicyagent2023,anderson2004extensible}
 evaluate capability tokens against attribute-based access rules.
-\emph{Constitutional AI}~\cite{bai2022constitutional} uses fine-tuning and RLHF
-to embed behavioral constraints into the model weights.
+\emph{Constitutional AI}~\cite{bai2022constitutional} embeds constraints into
+model weights via fine-tuning and RLHF.
 \emph{Audit layers} record events for post-hoc analysis.
 
-All of these approaches are \textbf{structurally blind} to a class of
-failures that the Agent Governance Series identifies formally:
+The structural property these approaches share -- local, stateless evaluation
+at decision boundaries -- defines the limit of what they can detect.
+We call the space beyond that limit the \textbf{Execution Gap}: the interval
+between what governance validates and what agents actually do in execution.
+Three classes of failure live in this gap, each invisible to local enforcement:
 
 \begin{enumerate}[leftmargin=2em, topsep=2pt]
-  \item \textbf{Compliant drift} (P2~\cite{fernandez2026iml}): behavioral
-        drift that is invisible to enforcement because the enforcement signal
-        evaluates actions locally while drift is a trajectory-level property.
+  \item \textbf{Compliant drift} (P2~\cite{fernandez2026iml}): an agent
+        whose \emph{every individual action} satisfies all local rules, but
+        whose behavioral trajectory diverges from its authorized baseline.
+        The P2 Non-Identifiability Theorem proves this drift lies outside
+        $\sigma(g)$ -- it cannot be detected by any function of the
+        enforcement signal alone.
+        Section~\ref{sec:exp1} provides the first experimental proof in a
+        real LangGraph workflow.
   \item \textbf{Partial observability} (P5--P6~\cite{fernandez2026ram,fernandez2026opram}):
-        execution requests where the authority-defining state is not fully
-        observable, making it impossible to verify that execution is valid
-        without either executing with invalid authority or halting unnecessarily.
+        a request arrives when the authority-defining state is not fully
+        observable. Stateless attestation either accepts invalid executions
+        (false positives) or blocks valid ones (false negatives); there is no
+        correct stateless answer. RAM's reconstructive procedure is the only
+        mechanism that achieves $\IER=0$ under partial observability while
+        preserving liveness.
   \item \textbf{Coordinated multi-agent escalation} (P1~\cite{fernandez2026acp},
-        P3/4~\cite{fernandez2026govstr}): $N$ agents that are each individually
-        within policy but collectively exceed the system's coordination budget.
+        P3/4~\cite{fernandez2026govstr}): $N$ agents each within individual
+        policy but collectively exhausting the system's coordination budget.
+        The formal bound $\CW_{\mathrm{appr}}=2N$ (P1) constrains this
+        amplification and is shown here to be framework-independent.
 \end{enumerate}
 
-The Agent Governance Series (Papers~0--6) addresses each failure mode formally:
-P0 establishes the atomicity requirement~\cite{fernandez2026a}; P1 defines
-stateful admission control (ACP)~\cite{fernandez2026acp}; P2 defines the
-Invariant Measurement Layer (IML)~\cite{fernandez2026iml}; P3/4 proves
-governance structure irreducibility~\cite{fernandez2026govstr}; P5 defines
-the Reconstructive Authority Model (RAM)~\cite{fernandez2026ram}; P6
-operationalizes RAM with a formal Recovery Loop~\cite{fernandez2026opram}.
+Papers 0--6 address each failure mode with formal guarantees.
+But formal guarantees alone do not answer the operational question: does
+the integrated stack actually close the Execution Gap when deployed in a
+real LLM agent framework?
 
-\textbf{This paper's contribution} is the first empirical validation of the
-complete stack applied to real LLM agent workflows.
-We implement the entire governance stack in Python, instrument it into a
-LangGraph StateGraph agent, and run four targeted experiments that each
-test one formal claim from the series.
-We report both the confirmations (all four theoretical predictions hold) and
-the refinements (three empirical findings that improve the theoretical
-formulations).
+\subsection*{This paper}
+
+We answer that question empirically and with a specific claim: \emph{none of
+the three failure modes above survives when the complete governance stack is
+operating.}
+We implement the entire P0--P6 stack in Python, instrument it into a
+LangGraph~\cite{langgraph2024} StateGraph agent, and run four experiments --
+one per failure dimension, plus a full-stack integration -- on a deterministic
+but realistic agent workflow with five tools spanning the full risk spectrum.
+
+The results are unambiguous: the stack closes the gap.
+Compliant drift is detected while enforcement sees nothing.
+Execution validity is guaranteed at every coverage level.
+Coordination amplification is bounded by the formal prediction.
+The integrated system converges, maintains liveness, and produces no deadlocks.
+Moreover, implementation against a real framework surfaces three refinements
+to the formal theory that the purely theoretical treatment left implicit.
 
 \textbf{Contributions:}
 \begin{itemize}[leftmargin=2em, topsep=2pt]
-  \item Open-source implementation of the full governance stack for LangGraph
-        (\texttt{chelof100/agent-governance-applied}).
-  \item Empirical confirmation of IML drift detection, RAM execution validity,
-        ACP coordination linearity, and full-stack convergence.
-  \item Three theoretical refinements: ACP baseline-RS assumption, liveness
-        rate classification, and EMA convergence bound parametrization.
+  \item \textbf{Empirical proof of the Execution Gap}: first experimental
+        demonstration that an agent can be fully enforcement-compliant
+        ($g(\tau)=0$ throughout) while drifting measurably from its
+        authorized baseline ($\Dhat > \theta$ in all six seeds).
+  \item \textbf{Closed-form closure}: experimental confirmation that the
+        integrated ACP+IML+RAM+RecoveryLoop stack closes all three Execution
+        Gap failure modes simultaneously, with zero deviation from formal
+        predictions on four independent experimental axes.
+  \item \textbf{Open-source implementation} of the full governance stack for
+        LangGraph (\texttt{chelof100/agent-governance-applied}).
+  \item \textbf{Three theoretical refinements}: ACP baseline-RS assumption,
+        liveness rate classification for the conditional liveness theorem,
+        and EMA convergence bound parametrization.
 \end{itemize}
 
 % =============================================================================
