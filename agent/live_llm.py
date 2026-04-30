@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-LiveLLM: real Mistral-small3.1 tool selector via Ollama.
+LiveLLM: real LLM tool selector via Ollama.
 
-Replaces MockLLM for Exp 1b. The LLM receives a task context that
-escalates naturally from routine maintenance to high-risk operations,
-inducing drift without forcing probabilities.
+Supports any Ollama-hosted model for multi-model Exp 1b replication.
+Drift is induced via escalating task context (not probability weights).
 
 Drift mechanism:
   - Burn-in (phase='burn_in'): routine maintenance context
   - Drift (progress 0.0->1.0): context shifts toward urgency + risk
 
 The LLM selects a tool by name from the allowed list.
-If it fails to parse, falls back to 'read_file' (safe default).
+Parsing handles <think> blocks (DeepSeek-R1 style) by stripping them
+before extracting the tool name from the last substantive line.
+Falls back to 'read_file' (safe default) on parse failure.
 """
 import re
 import ollama
@@ -99,11 +100,65 @@ def _make_context(phase: str, progress: float) -> str:
     return _random.choice(_DRIFT_SCENARIOS[tier])
 
 
-class LiveLLM:
-    """Ollama-backed LLM tool selector with context-driven drift."""
+def _parse_tool(raw: str) -> str:
+    """
+    Extract a tool name from raw LLM output.
 
-    def __init__(self, temperature: float = TEMPERATURE):
+    Handles:
+    - Reasoning models (DeepSeek-R1): strips <think>...</think> blocks first.
+    - Normal models: scans the last non-empty line for a tool name,
+      then falls back to scanning the full response.
+    - If nothing matches, returns 'read_file' (safe default).
+    """
+    # Strip reasoning blocks (DeepSeek-R1 / o1-style)
+    clean = re.sub(r'<think>.*?</think>', '', raw, flags=re.DOTALL).strip()
+    if not clean:
+        clean = raw  # fallback if stripping removed everything
+
+    # Try last-line-first: the final answer is usually the last non-empty line
+    lines = [ln.strip() for ln in clean.split('\n') if ln.strip()]
+    for line in reversed(lines):
+        for t in TOOL_NAMES:
+            if t in line:
+                return t
+
+    # Fallback: scan entire cleaned text (first match in list order)
+    for t in TOOL_NAMES:
+        if t in clean:
+            return t
+
+    return "read_file"
+
+
+# Models known to use chain-of-thought / reasoning tokens.
+# For these, think=False suppresses <think> blocks (Ollama feature),
+# which avoids context cutoff and reduces latency dramatically.
+_REASONING_MODELS = {"deepseek-r1", "qwen3", "phi4-reasoning"}
+
+
+def _is_reasoning_model(model: str) -> bool:
+    model_lower = model.lower()
+    return any(tag in model_lower for tag in _REASONING_MODELS)
+
+
+class LiveLLM:
+    """Ollama-backed LLM tool selector with context-driven drift.
+
+    Args:
+        model: Ollama model name (default: mistral-small3.1:latest).
+        temperature: Sampling temperature (default: TEMPERATURE module constant).
+        disable_think: If True, pass think=False for reasoning models.
+                       Auto-detected from model name by default (None).
+    """
+
+    def __init__(self, model: str = MODEL, temperature: float = TEMPERATURE,
+                 disable_think: bool | None = None):
+        self.model = model
         self.temperature = temperature
+        # Auto-detect: disable chain-of-thought for reasoning models
+        self._disable_think = (
+            _is_reasoning_model(model) if disable_think is None else disable_think
+        )
         self._call_count = 0
 
     def select_tool(self, phase: str, progress: float) -> tuple[str, float, int]:
@@ -117,21 +172,18 @@ class LiveLLM:
             {"role": "user",   "content": context},
         ]
 
+        kwargs: dict = dict(
+            model=self.model,
+            messages=messages,
+            options={"temperature": self.temperature, "num_predict": 32},
+        )
+        if self._disable_think:
+            kwargs["think"] = False
+
         try:
-            resp = ollama.chat(
-                model=MODEL,
-                messages=messages,
-                options={"temperature": self.temperature, "num_predict": 10},
-            )
+            resp = ollama.chat(**kwargs)
             raw = resp["message"]["content"].strip().lower()
-            # Extract first matching tool name
-            tool = None
-            for t in TOOL_NAMES:
-                if t in raw:
-                    tool = t
-                    break
-            if tool is None:
-                tool = "read_file"   # safe fallback
+            tool = _parse_tool(raw)
         except Exception:
             tool = "read_file"
 
