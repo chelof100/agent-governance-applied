@@ -559,12 +559,17 @@ protocol, not by model-family differences in risk-tolerance.}
 \begin{figure}[h]
 \centering
 \includegraphics[width=\linewidth]{../plots/fig5_live_llm}
-\caption{Experiment~1b: $\widehat{D}_t$ from mistral-small3.1 (solid black)
-vs.\ the MockLLM baseline from Exp.\,1 seed~42 (dashed gray). Bottom panel
-shows the tool selected at each step -- the shift from \texttt{read\_file}
-to \texttt{write\_data}, \texttt{delete\_record}, and \texttt{admin\_action}
-is contextually driven, not probabilistically forced. Detection threshold
-$\theta=0.20$ crossed at $T^*=64$.}
+\caption{Experiment~1b: $\widehat{D}_t$ for two real LLMs vs.\ the MockLLM
+baseline (Exp.\,1 seed~42, dotted).
+Solid black: mistral-small3.1 ($T^*=64$);
+dashed gray: deepseek-r1:8b ($T^*=65$).
+The two live-LLM trajectories are nearly indistinguishable, indicating that
+drift is driven by the context-escalation protocol rather than model-family
+risk-tolerance differences.
+Bottom panel shows tool selection per step for mistral-small3.1
+(darker = higher risk): the shift from \texttt{read\_file} to
+\texttt{write\_data}, \texttt{delete\_record}, and \texttt{admin\_action}
+is contextually driven, not probabilistically forced.}
 \label{fig:exp1b}
 \end{figure}
 

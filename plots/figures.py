@@ -264,10 +264,104 @@ def fig4_full_stack():
     print(f"Saved: {out}")
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Figure 5 — Exp 1b: Live LLM Drift (multi-model + MockLLM baseline)
+# ─────────────────────────────────────────────────────────────────────────────
+def fig5_live_llm():
+    # Load Mistral results
+    with open(os.path.join(RES, "exp1b", "exp1b_results.json")) as f:
+        mistral_data = json.load(f)
+    mistral_recs = mistral_data["records"]
+
+    # Load DeepSeek results
+    with open(os.path.join(RES, "exp1b", "deepseek-r1_8b", "results.json")) as f:
+        deepseek_data = json.load(f)
+    deepseek_recs = deepseek_data["records"]
+
+    # Load MockLLM seed 42 for baseline (from Exp 1)
+    with open(os.path.join(RES, "exp1", "exp1_results.json")) as f:
+        mock_data = json.load(f)
+    mock_recs = mock_data[0]["records"]  # seed 42
+
+    BURN_IN = 50
+
+    # Align all traces to drift-relative steps
+    m_ts   = [r["t"] - BURN_IN for r in mistral_recs]
+    m_dhat = [r["D_hat"] for r in mistral_recs]
+    m_tools= [r["tool"] for r in mistral_recs]
+
+    d_ts   = [r["t"] - BURN_IN for r in deepseek_recs]
+    d_dhat = [r["D_hat"] for r in deepseek_recs]
+
+    # MockLLM: truncate to same 150-step horizon for visual comparison
+    mk_ts   = [r["t"] - BURN_IN for r in mock_recs if r["t"] >= BURN_IN]
+    mk_dhat = [r["D_hat"] for r in mock_recs if r["t"] >= BURN_IN]
+    mk_ts   = mk_ts[:150]
+    mk_dhat = mk_dhat[:150]
+
+    # Tool-to-risk mapping for bottom panel color coding
+    TOOL_RISK = {
+        "read_file": 0.10, "query_api": 0.25, "write_data": 0.45,
+        "delete_record": 0.70, "admin_action": 0.90,
+    }
+    TOOL_GRAY = {
+        "read_file": "#cccccc", "query_api": "#999999", "write_data": "#666666",
+        "delete_record": "#333333", "admin_action": "#111111",
+    }
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(6.5, 4.8),
+                                   gridspec_kw={"height_ratios": [3, 1.2]},
+                                   sharex=True)
+
+    # --- Top panel: D_hat comparison ---
+    ax1.plot(mk_ts, mk_dhat, color="#aaaaaa", lw=1.0, ls=":", label="MockLLM seed~42 (Exp.~1)")
+    ax1.plot(d_ts,  d_dhat,  color="#555555", lw=1.5, ls="--", label="deepseek-r1:8b ($T^*=65$)")
+    ax1.plot(m_ts,  m_dhat,  color=COLORS["dhat"], lw=2.0, ls="-", label="mistral-small3.1 ($T^*=64$)")
+    ax1.axhline(0.20, color="gray", lw=0.8, ls="--", label=r"$\theta = 0.20$")
+
+    # Annotate T* for Mistral (primary model)
+    t_star = next((t for t, v in zip(m_ts, m_dhat) if v >= 0.20), None)
+    if t_star is not None:
+        ax1.axvline(t_star, color="#888888", lw=0.7, ls=":")
+        ax1.annotate(f"$T^*={t_star}$",
+                     xy=(t_star, 0.21), xytext=(t_star + 10, 0.24),
+                     fontsize=8, color="#555555",
+                     arrowprops=dict(arrowstyle="->", color="#888888", lw=0.7))
+
+    ax1.set_ylabel(r"$\hat{D}_t$ (IML composite)")
+    ax1.set_ylim(0, 0.45)
+    ax1.legend(loc="upper left", framealpha=0.85, fontsize=8)
+    ax1.set_title("Experiment~1b: Live LLM Drift Detection (two model families)")
+
+    # --- Bottom panel: tool selection (Mistral, color-coded by risk) ---
+    for r in mistral_recs:
+        t_rel = r["t"] - BURN_IN
+        col   = TOOL_GRAY.get(r["tool"], "#888888")
+        ax2.axvline(t_rel, color=col, lw=0.8, alpha=0.7)
+
+    ax2.set_xlabel("Step (relative to burn-in end)")
+    ax2.set_ylabel("Tool risk\n(mistral)", fontsize=8)
+    ax2.set_yticks([])
+
+    # Risk-level legend (gray scale proxy)
+    from matplotlib.lines import Line2D
+    handles = [Line2D([0], [0], color=TOOL_GRAY[t], lw=1.5, label=t)
+               for t in ["read_file", "write_data", "delete_record", "admin_action"]]
+    ax2.legend(handles=handles, loc="upper left", fontsize=7,
+               framealpha=0.85, ncol=2)
+
+    fig.tight_layout(h_pad=0.4)
+    out = os.path.join(OUT_DIR, "fig5_live_llm.pdf")
+    fig.savefig(out, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved: {out}")
+
+
 if __name__ == "__main__":
     print("Generating figures...")
     fig1_drift()
     fig2_coordination()
     fig3_ier_coverage()
     fig4_full_stack()
+    fig5_live_llm()
     print("Done.")
