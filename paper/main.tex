@@ -310,6 +310,9 @@ distributions, $D_c$ is the mean proximity to constraint boundaries,
 and $D_\ell$ is the normalized lineage depth deviation.
 All three components are estimable from the observed trace $\tau$,
 without access to the enforcement signal.
+In this sense, $\Azero$ functions as a \emph{certified contract with
+reality}: execution does not verify intent---it verifies whether the
+terms of that contract still hold at runtime.
 
 \subsection{RAM and Recovery Loop}
 \label{sec:bg-ram}
@@ -942,11 +945,13 @@ applying an IML-style composite -- could, in principle, address compliant drift;
 we treat this as a fair-play caveat rather than a permanent structural limitation.
 
 % =============================================================================
-\section{Empirical Refinements to the Theory}
+\section{Theoretical Refinements and Design Constraints}
 \label{sec:refinements}
 
 Beyond confirming the theoretical predictions, the implementation revealed
-three findings that refine the formal framework.
+three empirical findings that refine the formal framework, and exposed
+two structural properties that function as design constraints on the
+architecture.
 
 \subsection{ACP Baseline-RS Assumption}
 
@@ -1006,6 +1011,67 @@ higher values ($\alpha \approx 0.30$) suit systems where gradual long-horizon
 drift dominates and a stable running signal is preferable.
 This is a standard hyperparameter search with a monotone objective:
 longer expected drift horizon $\Rightarrow$ higher optimal $\alpha$.
+
+\subsection{Separation of Recalibration Authority (Design Constraint DC.1)}
+
+A system that allows its execution layer to modify its own governance
+parameters under runtime pressure ceases to be governed---it becomes
+self-justifying. The experiments confirm and operationalize this
+restriction: the stack's execution layer may validate state, emit
+evidence, and permit or block individual actions, but it may not modify
+$\theta$, recalibrate $\Azero$, or reinterpret policy at runtime.
+
+\textbf{Design Constraint DC.1:} \emph{The recalibration authority over
+$\theta$, $\alpha$, and $\Azero$ is strictly separated from the
+execution layer. No runtime condition---including sustained $\HALT$
+or accumulated drift---authorizes the execution layer to modify its
+own governance parameters.}
+
+This constraint answers directly the question: \emph{who governs the
+governor under runtime pressure?} The answer is not the execution layer.
+Recalibration requires an out-of-band governance action with its own
+authority chain and evidential record. A stack that permits in-band
+recalibration under pressure redefines compliance rather than enforcing it,
+and thereby eliminates the structural guarantee that gives $\Azero$ its
+meaning as a certified contract.
+
+\subsection{Drift Event Classification (Design Constraint DC.2)}
+
+Not all drift crossings are equivalent. We distinguish two categories
+based on persistence:
+
+\begin{definition}[Transient Drift Event]
+A \emph{transient drift event} occurs when $\Dhat(\tau) \geq \theta$
+at a discrete instant but $\Dhat$ returns below $\theta$ within
+a persistence window $\Delta T$. The Recovery Loop is the appropriate
+response: the system can self-recover without external intervention.
+\end{definition}
+
+\begin{definition}[Persistent Drift Event]
+A \emph{persistent drift event} occurs when $\Dhat(t) \geq \theta$
+for all $t \in [t_0,\, t_0 + \Delta T]$, where $\Delta T$ is an
+operator-defined persistence window specific to the deployment context.
+A persistent drift event constitutes a \emph{governance event}: it
+exceeds the scope of the execution layer and requires human authority
+to resolve, recalibrate baselines, or formally accept the new
+behavioral regime.
+\end{definition}
+
+\textbf{Design Constraint DC.2:} \emph{The execution layer may respond
+to transient drift events autonomously via the Recovery Loop.
+Persistent drift events must be escalated to the governance layer;
+the execution layer does not have authority to reclassify a persistent
+drift event as transient or to accept the new behavioral regime
+unilaterally.}
+
+The persistence window $\Delta T$ is operator-defined and
+deployment-specific. In our experiments, once drift crossed
+$\theta = 0.20$ under monotonic injection, it persisted for the
+remainder of the simulation horizon---consistent with a governance-level
+event classification under any reasonable $\Delta T$. In production,
+$\Delta T$ should reflect the system's recovery latency, escalation
+requirements, and domain-specific tolerance for uncertified execution
+states.
 
 % =============================================================================
 \section{Limitations}
@@ -1096,6 +1162,23 @@ and tightening it as $\Dhat$ approaches the boundary -- would reduce OCR
 without sacrificing the $\IER=0$ guarantee.
 This is the natural integration point for the IML--RAM feedback loop.
 
+\textbf{Design trade-offs: decision integrity over execution continuity.}
+The architecture makes an explicit choice: under uncertified state
+conditions, decision integrity takes precedence over execution continuity.
+A system that adapts its own governance parameters under runtime pressure
+may preserve availability---but does so by silently degrading authority.
+We term this \emph{controlled brittleness}: the stack fails closed rather
+than adapts, precisely because adaptation under uncertified conditions
+cannot be distinguished from authority erosion.
+The cost is measurable---OCR quantifies it directly---and the benefit is
+that every execution decision remains bound to a certified governance state.
+This trade-off is most visible in the HALT events of Experiment~4: each
+represents the stack choosing integrity over continuity. That is not a
+defect; it is the architecture functioning as designed.
+Design Constraints DC.1 and DC.2 make this choice explicit and
+non-negotiable at the execution layer: recalibration and reclassification
+are governance actions, not execution actions.
+
 % =============================================================================
 \section{Conclusion}
 \label{sec:conclusion}
@@ -1110,13 +1193,18 @@ with zero deviation (Exp.\,3);
 and the integrated stack converges without deadlock and maintains
 conditional liveness (Exp.\,4).
 
-Beyond confirmation, the implementation surfaces three refinements that
-sharpen the theoretical framework: the ACP baseline-RS assumption, the
-liveness-rate classification for the conditional liveness theorem, and
-the EMA-parameter dependency in the convergence bound.
-These refinements do not invalidate the existing proofs -- they make
-implicit assumptions explicit and add parametric precision to asymptotic
-claims.
+Beyond confirmation, the implementation surfaces three empirical refinements
+that sharpen the theoretical framework---the ACP baseline-RS assumption,
+the liveness-rate classification for the conditional liveness theorem, and
+the EMA-parameter dependency in the convergence bound---and establishes
+two design constraints that make explicit the structural limits of the
+execution layer: Separation of Recalibration Authority (DC.1) and
+Drift Event Classification (DC.2).
+These contributions do not invalidate the existing proofs; they make
+implicit assumptions explicit, add parametric precision to asymptotic
+claims, and formalize the architectural boundary between what the
+execution layer may decide autonomously and what requires governance
+authority.
 
 The governance stack is publicly available as an open-source Python library
 at \url{https://github.com/chelof100/agent-governance-applied}, with
