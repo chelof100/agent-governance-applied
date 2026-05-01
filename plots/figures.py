@@ -357,6 +357,103 @@ def fig5_live_llm():
     print(f"Saved: {out}")
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Figure 6 — Drift Event Classification: Transient vs Persistent (conceptual)
+# ─────────────────────────────────────────────────────────────────────────────
+def fig6_drift_classification():
+    """Conceptual illustration: transient vs persistent drift events."""
+    T = 60          # total steps per panel
+    theta = 0.20
+
+    t = np.arange(T)
+
+    # ── Transient: rises above θ briefly, returns below within ΔT ────────────
+    def make_transient(t):
+        d = np.zeros(len(t))
+        for i, ti in enumerate(t):
+            if ti < 15:
+                d[i] = 0.05 + 0.005 * ti
+            elif ti < 22:
+                d[i] = 0.05 + 0.005 * 15 + 0.025 * (ti - 15)  # ramp above θ
+            elif ti < 30:
+                d[i] = d[21] - 0.022 * (ti - 22)               # return below θ
+            else:
+                d[i] = max(0.06 + 0.001 * (ti - 30), 0.04)
+        # enforce small realistic noise
+        np.random.seed(1)
+        d += np.random.normal(0, 0.003, len(t))
+        return np.clip(d, 0, 0.38)
+
+    # ── Persistent: rises above θ at t0, stays above for all t ∈ [t0, t0+ΔT] ─
+    def make_persistent(t):
+        d = np.zeros(len(t))
+        for i, ti in enumerate(t):
+            if ti < 15:
+                d[i] = 0.05 + 0.004 * ti
+            elif ti < 25:
+                d[i] = 0.05 + 0.004 * 15 + 0.020 * (ti - 15)  # ramp above θ
+            else:
+                d[i] = min(d[24] + 0.004 * (ti - 25), 0.36)    # stays elevated
+        np.random.seed(2)
+        d += np.random.normal(0, 0.003, len(t))
+        return np.clip(d, 0, 0.38)
+
+    d_trans = make_transient(t)
+    d_pers  = make_persistent(t)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.5, 2.8), sharey=True)
+
+    # ── Left: transient ───────────────────────────────────────────────────────
+    ax1.plot(t, d_trans, color=COLORS["dhat"], lw=1.8, label=r"$\hat{D}_t$")
+    ax1.axhline(theta, color="gray", lw=0.9, ls="--", label=r"$\theta$")
+
+    # Find crossing indices
+    cross_up   = next(i for i in range(1, len(d_trans)) if d_trans[i-1] < theta <= d_trans[i])
+    cross_down = next(i for i in range(cross_up+1, len(d_trans)) if d_trans[i] < theta)
+    delta_t = cross_down - cross_up
+
+    # Shade the crossing window
+    ax1.axvspan(cross_up, cross_down, alpha=0.12, color="#888888", label=f"$\\Delta T = {delta_t}$ steps")
+    ax1.annotate("", xy=(cross_down, theta + 0.025), xytext=(cross_up, theta + 0.025),
+                 arrowprops=dict(arrowstyle="<->", color="#555555", lw=1.0))
+    ax1.text((cross_up + cross_down) / 2, theta + 0.032,
+             f"$\\Delta T={delta_t}$", ha="center", fontsize=8, color="#555555")
+    ax1.text(cross_up + 1, theta + 0.005, "Recovery\nLoop",
+             fontsize=7, color="#555555", va="bottom")
+
+    ax1.set_ylim(0, 0.42)
+    ax1.set_xlabel("Step")
+    ax1.set_ylabel(r"$\hat{D}_t$")
+    ax1.set_title("(a) Transient Drift Event", fontsize=9)
+    ax1.legend(loc="upper left", fontsize=7, framealpha=0.85)
+
+    # ── Right: persistent ─────────────────────────────────────────────────────
+    ax2.plot(t, d_pers, color=COLORS["dhat"], lw=1.8)
+    ax2.axhline(theta, color="gray", lw=0.9, ls="--")
+
+    cross_up2 = next(i for i in range(1, len(d_pers)) if d_pers[i-1] < theta <= d_pers[i])
+    delta_t2  = T - cross_up2  # persists to end
+
+    ax2.axvspan(cross_up2, T - 1, alpha=0.12, color="#444444", label=f"$\\Delta T^+$")
+    ax2.annotate("", xy=(T - 2, theta + 0.025), xytext=(cross_up2, theta + 0.025),
+                 arrowprops=dict(arrowstyle="<->", color="#333333", lw=1.0))
+    ax2.text((cross_up2 + T - 2) / 2, theta + 0.032,
+             f"$\\Delta T^+ = {delta_t2}$ steps", ha="center", fontsize=8, color="#333333")
+    ax2.text(cross_up2 + 2, theta + 0.005, "Governance\nEvent",
+             fontsize=7, color="#333333", va="bottom")
+
+    ax2.set_ylim(0, 0.42)
+    ax2.set_xlabel("Step")
+    ax2.set_title("(b) Persistent Drift Event", fontsize=9)
+
+    fig.suptitle("Drift Event Classification (Design Constraint DC.2)", fontsize=9, y=1.01)
+    fig.tight_layout()
+    out = os.path.join(OUT_DIR, "fig6_drift_classification.pdf")
+    fig.savefig(out, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved: {out}")
+
+
 if __name__ == "__main__":
     print("Generating figures...")
     fig1_drift()
@@ -364,4 +461,5 @@ if __name__ == "__main__":
     fig3_ier_coverage()
     fig4_full_stack()
     fig5_live_llm()
+    fig6_drift_classification()
     print("Done.")

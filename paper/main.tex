@@ -187,15 +187,15 @@ real LLM agent framework?
 
 \subsection*{This paper}
 
-We answer that question empirically and with a specific claim: \emph{none of
-the three failure modes above survives when the complete governance stack is
-operating.}
+We answer that question empirically: in our LangGraph-based experimental
+setting, \emph{none of the three failure modes above appears when the complete
+governance stack is operating.}
 We implement the entire P0--P6 stack in Python, instrument it into a
 LangGraph~\cite{langgraph2024} StateGraph agent, and run four experiments --
 one per failure dimension, plus a full-stack integration -- on a deterministic
 but realistic agent workflow with five tools spanning the full risk spectrum.
 
-The results are unambiguous within our experimental setup: the stack closes the gap.
+Within our experimental setting, the results are consistent and clear: the stack closes the gap.
 Compliant drift is detected while enforcement sees nothing.
 Execution validity is guaranteed at every coverage level.
 Coordination amplification is bounded by the formal prediction.
@@ -1027,6 +1027,12 @@ execution layer. No runtime condition---including sustained $\HALT$
 or accumulated drift---authorizes the execution layer to modify its
 own governance parameters.}
 
+Formally, governance parameters are immutable at the execution layer:
+\[
+  \forall t,\quad \theta(t) = \theta(0),\quad \alpha(t) = \alpha(0),
+  \quad \Azero(t) = \Azero(0).
+\]
+
 This constraint answers directly the question: \emph{who governs the
 governor under runtime pressure?} The answer is not the execution layer.
 Recalibration requires an out-of-band governance action with its own
@@ -1072,6 +1078,17 @@ event classification under any reasonable $\Delta T$. In production,
 $\Delta T$ should reflect the system's recovery latency, escalation
 requirements, and domain-specific tolerance for uncertified execution
 states.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{fig6_drift_classification.pdf}
+  \caption{Drift Event Classification (DC.2). \emph{Left:} a transient drift event---$\Dhat$
+  crosses $\theta$ briefly and returns below within $\Delta T$ steps; the Recovery Loop responds
+  autonomously. \emph{Right:} a persistent drift event---$\Dhat$ remains above $\theta$ for
+  the full window $\Delta T^+$; this constitutes a governance event requiring human authority.
+  Both panels use synthetic traces for illustration; Experiment~1 provides the empirical evidence.}
+  \label{fig:drift_classification}
+\end{figure}
 
 % =============================================================================
 \section{Limitations}
@@ -1165,6 +1182,10 @@ This is the natural integration point for the IML--RAM feedback loop.
 \textbf{Design trade-offs: decision integrity over execution continuity.}
 The architecture makes an explicit choice: under uncertified state
 conditions, decision integrity takes precedence over execution continuity.
+This reflects the classical safety/liveness tension in distributed
+systems~\cite{lamport2001paxos,alpern1985defining}: a system can guarantee
+either that bad things never happen (safety) or that good things eventually
+happen (liveness), but not both unconditionally under failure.
 A system that adapts its own governance parameters under runtime pressure
 may preserve availability---but does so by silently degrading authority.
 We term this \emph{controlled brittleness}: the stack fails closed rather
