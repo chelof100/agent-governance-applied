@@ -120,7 +120,7 @@ The open-source implementation provides a deployable blueprint for
 practitioners integrating runtime governance into LangGraph-based agent systems.
 Code and data: \url{https://github.com/chelof100/agent-governance-applied}.
 Archived version: \url{https://doi.org/10.5281/zenodo.19929771}.
-This is Paper~7 of the Agent Governance Series (P0--P7; Paper~8 on scale and heterogeneity is in preparation).
+This is Paper~7 of the Agent Governance Series (P0--P7; Paper~8 on identity-bound governance and post-HALT authority resolution is in preparation).
 \end{abstract}
 
 \tableofcontents
@@ -224,8 +224,8 @@ to the formal theory that the purely theoretical treatment left implicit.
 \section{Background: The Agent Governance Stack}
 \label{sec:background}
 
-The seven papers in the Agent Governance Series form a layered formal
-architecture, each addressing a distinct question about agent governance.
+The Agent Governance Series forms a layered formal architecture, each paper
+addressing a distinct question about agent governance (P8 in preparation).
 Table~\ref{tab:series} summarizes the series.
 
 \begin{table}[h]
@@ -242,9 +242,10 @@ P3/4 & Governance structure & Allocation + fairness & Irreducibility \\
 P5 & Execution validity     & RAM / $\mathcal{A}(\alpha)$ & $\IER = 0$ \\
 P6 & Operationalization     & Recovery Loop         & Conditional liveness \\
 P7 & Empirical validation   & Full stack (this paper) & All of the above \\
+P8 & Identity-bound governance & $\mathcal{P}$, $G$, APB & Governance completeness \\
 \bottomrule
 \end{tabular}
-\caption{The Agent Governance Series. P7 provides empirical validation of P0--P6.}
+\caption{The Agent Governance Series. P7 provides empirical validation of P0--P6; P8 is in preparation.}
 \label{tab:series}
 \end{table}
 
@@ -1054,6 +1055,7 @@ response: the system can self-recover without external intervention.
 \end{definition}
 
 \begin{definition}[Persistent Drift Event]
+\label{def:persistent}
 A \emph{persistent drift event} occurs when $\Dhat(t) \geq \theta$
 for all $t \in [t_0,\, t_0 + \Delta T]$, where $\Delta T$ is an
 operator-defined persistence window specific to the deployment context.
@@ -1079,6 +1081,25 @@ $\Delta T$ should reflect the system's recovery latency, escalation
 requirements, and domain-specific tolerance for uncertified execution
 states.
 
+\textbf{Scope of DC.2.}
+DC.2 establishes the \emph{classification} and \emph{routing} of persistent
+drift events to the governance layer.
+It does not define the governance layer itself.
+In particular, the following questions are formally open in this paper:
+\begin{itemize}[leftmargin=2em, topsep=2pt]
+  \item \textbf{Identity:} which principals constitute the governance layer
+        authorized to receive and act on an escalation?
+  \item \textbf{Binding:} what mechanism binds a specific human $H_i$ to a
+        governance role such that their re-authorization is distinguishable
+        from an unauthorized override?
+  \item \textbf{Evidence:} what constitutes a valid re-authorization
+        record---what information must it capture to support post-hoc
+        accountability?
+\end{itemize}
+These are not implementation details---they are structural prerequisites for
+DC.2 to function as a governance mechanism rather than a routing label.
+Their formalization is the subject of P8 (Section~\ref{sec:discussion}).
+
 \begin{figure}[ht]
   \centering
   \includegraphics[width=\linewidth]{fig6_drift_classification.pdf}
@@ -1089,6 +1110,39 @@ states.
   Both panels use synthetic traces for illustration; Experiment~1 provides the empirical evidence.}
   \label{fig:drift_classification}
 \end{figure}
+
+\begin{remark}[HALT Preserves Authority; It Does Not Resolve It]
+\label{rem:halt-preserves}
+A \HALT\ decision is a safety mechanism, not a resolution mechanism.
+When $A(t) = \bot$, \HALT\ correctly prevents execution under undefined
+authority---this is the guarantee established by RAM~(P5) and
+operationalized by P6.
+But \HALT\ answers only one question: \emph{may the system proceed?}
+It does not answer the structurally distinct question:
+\emph{who may re-authorize execution, and under what conditions?}
+
+Two cases must be distinguished:
+\begin{enumerate}[leftmargin=2em, topsep=2pt]
+  \item A \HALT\ caused by \emph{unobservable state variables} (the RAM gap,
+        P5 Theorem~1) is resolvable by the Recovery Loop.
+        The system can self-recover when observability is restored.
+  \item A \HALT\ caused by \emph{persistent drift}
+        (Definition~\ref{def:persistent}, DC.2) requires an out-of-band
+        governance action by an authorized principal.
+        The Recovery Loop is not the applicable resolution path:
+        the issue is not unobservability---it is a genuine departure from
+        the authorized behavioral regime.
+        The system cannot and must not self-recover unilaterally.
+\end{enumerate}
+Conflating these two cases---running the Recovery Loop to exhaustion on a
+persistent drift event and then silently resuming---is an authority erosion
+event of exactly the type DC.1 is designed to prevent.
+The 30.2\% ``stuck'' events in Experiment~4 are empirical evidence of systems
+correctly \emph{preserving} authority without \emph{resolving} it.
+The formal treatment of who constitutes an authorized principal, what
+constitutes valid re-authorization evidence, and how that decision is bound to
+an accountable record is deferred to P8.
+\end{remark}
 
 % =============================================================================
 \section{Limitations}
@@ -1135,19 +1189,66 @@ RAM scales in $O(|D|)$ per request ($D$ = authority-defining components).
 Scaling to $N > 1{,}000$ concurrent agents requires validating that
 the shared ACP state does not become a bottleneck, which we leave for future work.
 
-\textbf{Scale and heterogeneity (Paper~8 scope).}
+\textbf{Scale and heterogeneity.}
 Experiments~1, 2, and~4 use a single agent for clarity of isolation.
 Experiment~3 uses $N \leq 16$ agents in a controlled round-robin setting.
 Real deployments with heterogeneous agents, dynamic task routing,
-persistent side-effects, and long-horizon tasks introduce failure modes
-beyond this paper's scope: correlated drift across agents, emergent
-coordination patterns not reducible to round-robin interleaving, and
-recovery loops operating on shared rather than agent-local state.
-These constitute the empirical program for Paper~8 of the series.
+and long-horizon tasks introduce failure modes beyond this paper's scope:
+correlated drift across agents, emergent coordination patterns not
+reducible to round-robin interleaving, and recovery loops on shared state.
+These are important directions but secondary to the authority binding gap
+identified in Section~\ref{sec:discussion}.
 
 % =============================================================================
 \section{Discussion and Future Work}
 \label{sec:discussion}
+
+\subsection*{Paper~8: Identity-Bound Governance Under Execution Uncertainty}
+\label{sec:p8-scope}
+
+Design Constraints DC.1 and DC.2 define a boundary: the execution layer
+cannot cross it, and something must be on the other side.
+Paper~8 formalizes what is on the other side.
+
+Its central question: \emph{when $A(t) = \bot$ and the Recovery Loop is
+inapplicable (Remark~\ref{rem:halt-preserves}), who may re-authorize
+execution, and what evidence must they produce?}
+
+Three formal objects:
+\begin{itemize}[leftmargin=2em, topsep=2pt]
+  \item \textbf{Principal Set} $\mathcal{P} = \{H_1,\ldots,H_n\}$:
+        a pre-registered, identity-bound set of human principals whose
+        re-authorization decisions are admissible at the governance layer.
+        $\mathcal{P}$ is read-only at the execution layer (a direct
+        consequence of DC.1).
+  \item \textbf{Authority Resolution Function}
+        $G: \mathcal{P} \times \mathcal{S} \times \mathcal{E} \to
+        \{\textsc{resume},\,\textsc{deny},\,\textsc{recalibrate}\}$:
+        the governance-layer analog of RAM's $F$.
+        It constructs authority from human attestation over a defined evidence
+        set, not from sensor state.
+        Critically, $G$'s \textsc{recalibrate} output is the \emph{only}
+        authorized path by which $\Azero$ may change after initialization---
+        the out-of-band channel that DC.1 implicitly requires.
+  \item \textbf{Accountability Proof Block (APB)}: a signed, structured
+        record binding $(H_i,\; t_e,\; \mathcal{E}(t_e),\;
+        \Azero,\; \Dhat(t_e),\; \text{decision},\; \text{rationale},\;
+        \sigma)$.
+        The APB extends the P6 audit artifact with cryptographic principal
+        binding and drift evidence, so that every governance act is
+        attributable to a specific identity under a specific system state.
+\end{itemize}
+
+Three theorems P8 will prove:
+(1)~\emph{Governance Completeness}---every HALT event resolves through either
+the Recovery Loop or a signed APB; no third path exists.
+(2)~\emph{Non-Repudiability}---no principal can deny a governance act for
+which a valid APB exists.
+(3)~\emph{Impossibility of Anonymous Re-Authorization}---the execution layer
+cannot generate a valid APB without the principal's private credential.
+
+The 167 ESCALATE and 248 ``stuck'' events from Experiment~4 constitute the
+empirical evidence base for P8's validation experiments.
 
 \textbf{MCP/A2A integration.}
 The governance stack as implemented operates on tool-call traces from a
