@@ -99,10 +99,10 @@ trajectory-level, stateful phenomenon.
 
 This paper provides the first empirical demonstration that the Execution Gap
 is real, measurable, and closeable.
-We implement the complete Agent Governance Stack -- seven formal papers
-(P0--P6) covering atomic decision boundaries, stateful admission control
-(ACP), invariant measurement (IML), governance structure, and reconstructive
-authority (RAM) -- as a Python library instrumented into a \textbf{LangGraph}
+We implement the Agent Governance Stack (Papers~P0--P6: atomic decision
+boundaries, stateful admission control, invariant measurement, governance
+structure, and reconstructive authority) as a Python library instrumented
+into a \textbf{LangGraph}
 StateGraph, and run four experiments that each isolate one dimension of the gap.
 Our central finding: \emph{the enforcement signal remains identically zero while
 the IML composite $\Dhat$ grows monotonically}, crossing the detection
@@ -1230,13 +1230,28 @@ Three formal objects:
         Critically, $G$'s \textsc{recalibrate} output is the \emph{only}
         authorized path by which $\Azero$ may change after initialization---
         the out-of-band channel that DC.1 implicitly requires.
-  \item \textbf{Accountability Proof Block (APB)}: a signed, structured
-        record binding $(H_i,\; t_e,\; \mathcal{E}(t_e),\;
-        \Azero,\; \Dhat(t_e),\; \text{decision},\; \text{rationale},\;
-        \sigma)$.
-        The APB extends the P6 audit artifact with cryptographic principal
-        binding and drift evidence, so that every governance act is
-        attributable to a specific identity under a specific system state.
+  \item \textbf{Accountability Proof Block (APB)}: a two-part record with
+        a binding signature, reflecting the division of responsibility
+        between system and principal:
+        \begin{itemize}[leftmargin=1.5em, topsep=1pt]
+          \item $E_s = (\Azero,\;\Dhat(t_e),\;t_e,\;\mathrm{trace},\;
+                \mathrm{cause})$ --- the \emph{System Evidence Block},
+                constructed by the execution layer from certified runtime
+                state. Only the system can produce $E_s$ correctly.
+          \item $D_h = (H_i,\;\mathrm{decision},\;\mathrm{rationale},\;
+                \mathrm{scope})$ --- the \emph{Human Decision Block},
+                added by the acting principal. The principal does not
+                restate $E_s$; they declare authority over it.
+          \item $\sigma_h = \mathrm{Sign}_{sk_i}(\mathrm{hash}(E_s \,\Vert\,
+                D_h))$ --- the principal's signature over the full block.
+        \end{itemize}
+        The system cannot forge $\sigma_h$ (lacks $sk_i$); the principal
+        cannot alter $E_s$ undetected (the signature covers both parts).
+        In effect, the principal declares: \emph{``given this certified
+        state, I accept responsibility for this decision''} --- preserving
+        state integrity while binding governance authority to a specific
+        identity. The APB extends the P6 audit artifact: $E_s$ maps to
+        P6's existing fields; $D_h$ and $\sigma_h$ are the P8 additions.
 \end{itemize}
 
 Three theorems P8 will prove:
@@ -1305,8 +1320,9 @@ are governance actions, not execution actions.
 \section{Conclusion}
 \label{sec:conclusion}
 
-We have presented the first empirical validation of the complete Agent
-Governance Stack applied to real LangGraph agent workflows.
+We have presented the first empirical validation of the Agent Governance
+Stack (Papers~0--6, as specified in the Zenodo preprints cited herein)
+applied to real LangGraph agent workflows.
 Four experiments confirm the four core theoretical predictions of the series:
 IML detects compliant drift invisible to enforcement (Exp.\,1);
 RAM achieves $\IER=0$ at all state-coverage levels (Exp.\,2);
