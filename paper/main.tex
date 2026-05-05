@@ -870,6 +870,38 @@ efficiency. The feedback loop is well-defined and non-circular:
 $\mathrm{IML} \to \mathrm{RAM} \to \mathrm{RecoveryLoop} \to \mathrm{RAM}$,
 with no path from RAM or Recovery Loop back into the IML trace.
 
+\textbf{Ablation: marginal contribution of each layer.}
+Table~\ref{tab:exp4_ablation} isolates the contribution of each governance
+layer by running the same 2000-step scenario with four stack configurations.
+ACP alone admits 22.97\% of high-risk tool executions unblocked (estimated
+IER upper bound); adding IML provides drift observability without execution
+gating (IER unchanged). RAM reduces IER to exactly 0.000 but, without the
+Recovery Loop, all 821 HALT events remain permanently stuck (liveness fails).
+The full stack recovers liveness: 406 events RESUME (49.5\%), with the
+remaining 415 split between ESCALATE (167) and stuck-at-max-attempts (248).
+$\Dhat$ convergence is identical across all IML-enabled configurations
+($D_{\max} = 0.324$), confirming that bounded drift does not depend on the
+execution-gating layers.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Experiment~4 ablation: marginal contribution of each governance layer.
+  IER$^*$ = estimated upper bound (no RAM gate active).
+  $D_{\max}$: maximum $\widehat{D}$ in final 200 steps.}
+\label{tab:exp4_ablation}
+\begin{tabular}{lccccccc}
+\toprule
+\textbf{Configuration} & \textbf{IER} & \textbf{HALTs} & \textbf{Resume} & \textbf{Stuck} & \textbf{Escal.} & $D_{\max}$ & \textbf{Liveness} \\
+\midrule
+ACP only            & 0.230$^*$ & 0   & 0   & 0   & 0   & \textemdash & Yes \\
+ACP + IML           & 0.230$^*$ & 0   & 0   & 0   & 0   & 0.324       & Yes \\
+ACP + IML + RAM     & 0.000     & 821 & 0   & 821 & 0   & 0.324       & No  \\
+Full stack          & 0.000     & 821 & 406 & 248 & 167 & 0.324       & Yes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 % =============================================================================
 \section{Comparison with Existing Governance Mechanisms}
 \label{sec:comparison}
