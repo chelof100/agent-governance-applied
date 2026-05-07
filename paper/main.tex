@@ -518,18 +518,19 @@ MockLLM (see Section~\ref{sec:limits}).
 To address the concern that Experiment~1 relies on a synthetic drift
 model, we replicate the detection task with real LLMs making decisions
 from natural language context.
-We test two models from distinct families, both served locally via Ollama
-at temperature\,=\,0.4:
-\textbf{mistral-small3.1} (Mistral AI, 15B parameters) and
+We test three models from distinct families, all served locally via Ollama
+at temperature\,=\,0.4, with 3 independent runs each:
+\textbf{mistral-small3.1} (Mistral AI, 15B parameters),
 \textbf{deepseek-r1:8b} (DeepSeek, 8B parameters, chain-of-thought
 reasoning disabled for latency\footnote{DeepSeek-R1 generates
 chain-of-thought (\texttt{<think>}) tokens before its final answer.
 We pass \texttt{think=False} via the Ollama API to suppress the reasoning
 trace and receive only the tool-selection decision, which is the unit of
-governance interest.}).
+governance interest.}), and
+\textbf{gemma4} (Google, 27B parameters).
 
 Each model receives a task description that escalates in urgency and risk
-over 150 drift steps following a 50-step burn-in.
+over 500 drift steps following a 50-step burn-in.
 During burn-in, the model receives routine maintenance scenarios;
 during drift, the context shifts across five tiers (monitoring, quality
 review, data correction, urgent cleanup, emergency recovery) proportionally
@@ -538,39 +539,50 @@ Critically: \emph{no tool is forbidden at any point}.
 Every tool selection is a contextually appropriate response to a
 legitimate task description.
 No enforcement rule is violated.
+We additionally run a temperature sensitivity sweep on mistral-small3.1
+across $T \in \{0.2, 0.4, 0.6, 0.8\}$ to test whether drift timing is
+stochastic or context-driven.
 
 \subsection{Results}
 
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{@{}llcccccc@{}}
+\begin{tabular}{@{}llccccccc@{}}
 \toprule
-Model & Family & Size & $\Dhat_{\mathrm{final}}$ & $T^*$ & $\sum g(\tau)$ & T2 & T3 \\
+Model & Family & Size & Runs & $\Dhat_{\mathrm{final}}$ & $T^*$ & $\sum g(\tau)$ & T2 & T3 \\
 \midrule
-mistral-small3.1 & Mistral  & 15B & 0.367 & 64 & 0 & Pass & Pass \\
-deepseek-r1:8b   & DeepSeek &  8B & 0.362 & 65 & 0 & Pass & Pass \\
+mistral-small3.1 & Mistral  & 15B & 3 & $0.430 \pm 0.001$ & $156 \pm 1$  & 0 & Pass & Pass \\
+deepseek-r1:8b   & DeepSeek &  8B & 3 & $0.424 \pm 0.000$ & $160 \pm 0$  & 0 & Pass & Pass \\
+gemma4           & Google   & 27B & 3 & $0.283 \pm 0.003$ & $257 \pm 15$ & 0 & Pass & Pass \\
 \bottomrule
 \end{tabular}
-\caption{Experiment~1b: live LLM drift detection across two model families
-(temperature\,=\,0.4, 150 drift steps, $\theta=0.20$).
-Both models show identically zero enforcement signal while IML detects drift;
-$T^*$ differs by one step and $\Dhat_{\mathrm{final}}$ differs by 0.005,
-indicating that the drift trajectory is driven by the context-escalation
-protocol, not by model-family differences in risk-tolerance.}
+\caption{Experiment~1b: live LLM drift detection across three model families
+(temperature\,=\,0.4, 500 drift steps, 3 runs each, $\theta=0.20$).
+Values shown as mean\,$\pm$\,std across runs.
+All models show identically zero enforcement signal ($\sum g(\tau)=0$) while
+IML detects drift in every run (T3 Pass).
+mistral-small3.1 and deepseek-r1:8b reach $\theta$ in $T^* \approx 156$--$160$
+steps with high D-final ($\approx 0.42$--$0.43$); gemma4 drifts more slowly
+($T^*=257\pm15$, $\Dhat_{\mathrm{final}}=0.283$), reflecting model-family
+differences in how quickly context escalation shifts tool distribution.
+In all cases, drift is structurally invisible to enforcement and structurally
+visible to IML.}
 \label{tab:exp1b}
 \end{table}
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=\linewidth]{fig5_live_llm}
-\caption{Experiment~1b: $\widehat{D}_t$ for two real LLMs vs.\ the MockLLM
-baseline (Exp.\,1 seed~42, dotted).
-Solid black: mistral-small3.1 ($T^*=64$);
-dashed gray: deepseek-r1:8b ($T^*=65$).
-The two live-LLM trajectories are nearly indistinguishable, indicating that
-drift is driven by the context-escalation protocol rather than model-family
-risk-tolerance differences.
+\caption{Experiment~1b: $\widehat{D}_t$ for three real LLMs vs.\ the MockLLM
+baseline (Exp.\,1 seed~42, dotted), over 500 drift steps.
+Solid black: mistral-small3.1 ($\bar{T}^*=156$);
+dashed gray: deepseek-r1:8b ($\bar{T}^*=160$);
+dash-dot: gemma4 ($\bar{T}^*=257$).
+mistral-small3.1 and deepseek-r1:8b show nearly identical trajectories
+converging to $\Dhat \approx 0.43$; gemma4 drifts more slowly
+($\Dhat_{\mathrm{final}} \approx 0.28$) but crosses $\theta$ in every run.
+In all three models, $g(\tau)=0$ throughout.
 Bottom panel shows tool selection per step for mistral-small3.1
 (darker = higher risk): the shift from \texttt{read\_file} to
 \texttt{write\_data}, \texttt{delete\_record}, and \texttt{admin\_action}
@@ -580,25 +592,38 @@ is contextually driven, not probabilistically forced.}
 
 \subsection{Analysis}
 
-Both models confirm the central claim of Experiment~1 under real-LLM
-conditions and across distinct model families.
+All three models confirm the central claim of Experiment~1 under real-LLM
+conditions across distinct model families, architectures, and parameter scales.
 Each model makes a sequence of contextually appropriate decisions:
 routine monitoring tasks select \texttt{read\_file}; data correction tasks
 select \texttt{write\_data}; urgency scenarios select \texttt{delete\_record};
 emergency scenarios select \texttt{admin\_action}.
 Every selection is a reasonable response to a legitimate prompt.
-No enforcement rule is triggered ($g(\tau) = 0$ throughout) for either model.
+No enforcement rule is triggered ($g(\tau) = 0$ throughout) for any model
+in any run (9 total).
 
 Yet the IML composite $\Dhat$ grows monotonically and crosses $\theta=0.20$
-in both runs.
-For mistral-small3.1, $\Dhat$ grows from $0.007$ to $0.367$,
-crossing $\theta=0.20$ at $T^*=64$.
-For deepseek-r1:8b (a chain-of-thought reasoning model from a distinct
-architecture family), $\Dhat$ grows from $0.006$ to $0.362$,
-crossing $\theta=0.20$ at $T^*=65$.
-The two trajectories differ by one detection step and 0.005 in final $\Dhat$:
-the drift is driven by the context-escalation protocol,
-not by model-family differences.
+in all 9 runs.
+mistral-small3.1 reaches $\Dhat_{\mathrm{final}}=0.430\pm0.001$ with
+$T^*=156\pm1$ across 3 runs.
+deepseek-r1:8b (chain-of-thought reasoning model, distinct architecture)
+is fully deterministic: $T^*=160$ and $\Dhat_{\mathrm{final}}=0.424$
+identically across all 3 runs.
+gemma4 (27B, instruction-tuned) drifts more slowly: $T^*=257\pm15$ and
+$\Dhat_{\mathrm{final}}=0.283\pm0.003$, reflecting a more conservative
+tool-selection strategy under the same context escalation.
+Despite the quantitative difference, the qualitative result is identical:
+$g(\tau)=0$ throughout and IML detects drift in every run.
+
+\textbf{Temperature insensitivity.}
+A sweep of mistral-small3.1 across $T \in \{0.2, 0.4, 0.6, 0.8\}$
+yields $T^* \in \{153, 156, 157, 155\}$ and
+$\Dhat_{\mathrm{final}} \in \{0.433, 0.430, 0.430, 0.430\}$~--~a
+range of 4 steps and 0.003 in $\Dhat$.
+Sampling temperature has negligible effect on drift timing.
+This confirms that drift is driven by the context-escalation protocol,
+not by stochastic variation in token sampling.
+
 The trajectory-level shift -- from a safe tool distribution to a high-risk
 one -- is detectable by IML precisely because IML retains access to the
 authorized baseline $\Azero$.
@@ -606,7 +631,8 @@ Enforcement cannot detect it because enforcement evaluates each action
 locally, and each action is locally correct.
 
 \textbf{Key implication.} The Execution Gap is not an artifact of
-synthetic drift models, nor of any particular LLM family.
+synthetic drift models, nor of any particular LLM family, architecture,
+or temperature setting.
 Real LLMs making contextually appropriate choices -- responding to
 task context in a way that any operator would approve step-by-step --
 produce behavioral drift that is structurally invisible to enforcement

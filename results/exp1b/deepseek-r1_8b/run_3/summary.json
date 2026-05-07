@@ -1,0 +1,15 @@
+{
+  "model": "deepseek-r1:8b",
+  "temperature": 0.4,
+  "total_steps": 500,
+  "burn_in": 50,
+  "D_final": 0.4243,
+  "enforcement_total": 0,
+  "T_star": 160,
+  "theta": 0.2,
+  "T2_pass": true,
+  "T3_pass": true,
+  "elapsed_sec": 219.1,
+  "llm_calls": 550,
+  "run": 3
+}

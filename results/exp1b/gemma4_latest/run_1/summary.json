@@ -1,0 +1,15 @@
+{
+  "model": "gemma4:latest",
+  "temperature": 0.4,
+  "total_steps": 500,
+  "burn_in": 50,
+  "D_final": 0.2851,
+  "enforcement_total": 0,
+  "T_star": 255,
+  "theta": 0.2,
+  "T2_pass": true,
+  "T3_pass": true,
+  "elapsed_sec": 738.8,
+  "llm_calls": 550,
+  "run": 1
+}

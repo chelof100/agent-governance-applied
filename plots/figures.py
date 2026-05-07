@@ -268,15 +268,18 @@ def fig4_full_stack():
 # Figure 5 — Exp 1b: Live LLM Drift (multi-model + MockLLM baseline)
 # ─────────────────────────────────────────────────────────────────────────────
 def fig5_live_llm():
-    # Load Mistral results
-    with open(os.path.join(RES, "exp1b", "exp1b_results.json")) as f:
+    # Load Run 1 of each model (representative trajectory, 500 steps)
+    with open(os.path.join(RES, "exp1b", "mistral-small3_1_latest", "run_1", "results.json")) as f:
         mistral_data = json.load(f)
     mistral_recs = mistral_data["records"]
 
-    # Load DeepSeek results
-    with open(os.path.join(RES, "exp1b", "deepseek-r1_8b", "results.json")) as f:
+    with open(os.path.join(RES, "exp1b", "deepseek-r1_8b", "run_1", "results.json")) as f:
         deepseek_data = json.load(f)
     deepseek_recs = deepseek_data["records"]
+
+    with open(os.path.join(RES, "exp1b", "gemma4_latest", "run_1", "results.json")) as f:
+        gemma4_data = json.load(f)
+    gemma4_recs = gemma4_data["records"]
 
     # Load MockLLM seed 42 for baseline (from Exp 1)
     with open(os.path.join(RES, "exp1", "exp1_results.json")) as f:
@@ -286,24 +289,22 @@ def fig5_live_llm():
     BURN_IN = 50
 
     # Align all traces to drift-relative steps
-    m_ts   = [r["t"] - BURN_IN for r in mistral_recs]
-    m_dhat = [r["D_hat"] for r in mistral_recs]
-    m_tools= [r["tool"] for r in mistral_recs]
+    m_ts    = [r["t"] - BURN_IN for r in mistral_recs]
+    m_dhat  = [r["D_hat"] for r in mistral_recs]
+    m_tools = [r["tool"] for r in mistral_recs]
 
     d_ts   = [r["t"] - BURN_IN for r in deepseek_recs]
     d_dhat = [r["D_hat"] for r in deepseek_recs]
 
-    # MockLLM: truncate to same 150-step horizon for visual comparison
+    g_ts   = [r["t"] - BURN_IN for r in gemma4_recs]
+    g_dhat = [r["D_hat"] for r in gemma4_recs]
+
+    # MockLLM: extend to 500-step horizon for visual comparison
     mk_ts   = [r["t"] - BURN_IN for r in mock_recs if r["t"] >= BURN_IN]
     mk_dhat = [r["D_hat"] for r in mock_recs if r["t"] >= BURN_IN]
-    mk_ts   = mk_ts[:150]
-    mk_dhat = mk_dhat[:150]
+    mk_ts   = mk_ts[:500]
+    mk_dhat = mk_dhat[:500]
 
-    # Tool-to-risk mapping for bottom panel color coding
-    TOOL_RISK = {
-        "read_file": 0.10, "query_api": 0.25, "write_data": 0.45,
-        "delete_record": 0.70, "admin_action": 0.90,
-    }
     TOOL_GRAY = {
         "read_file": "#cccccc", "query_api": "#999999", "write_data": "#666666",
         "delete_record": "#333333", "admin_action": "#111111",
@@ -315,25 +316,17 @@ def fig5_live_llm():
 
     # --- Top panel: D_hat comparison ---
     ax1.plot(mk_ts, mk_dhat, color="#aaaaaa", lw=1.0, ls=":", label="MockLLM seed~42 (Exp.~1)")
-    ax1.plot(d_ts,  d_dhat,  color="#555555", lw=1.5, ls="--", label="deepseek-r1:8b ($T^*=65$)")
-    ax1.plot(m_ts,  m_dhat,  color=COLORS["dhat"], lw=2.0, ls="-", label="mistral-small3.1 ($T^*=64$)")
+    ax1.plot(g_ts,  g_dhat,  color="#888888", lw=1.5, ls="-.", label=r"gemma4 ($\bar{T}^*=257$)")
+    ax1.plot(d_ts,  d_dhat,  color="#555555", lw=1.5, ls="--", label=r"deepseek-r1:8b ($\bar{T}^*=160$)")
+    ax1.plot(m_ts,  m_dhat,  color=COLORS["dhat"], lw=2.0, ls="-", label=r"mistral-small3.1 ($\bar{T}^*=156$)")
     ax1.axhline(0.20, color="gray", lw=0.8, ls="--", label=r"$\theta = 0.20$")
 
-    # Annotate T* for Mistral (primary model)
-    t_star = next((t for t, v in zip(m_ts, m_dhat) if v >= 0.20), None)
-    if t_star is not None:
-        ax1.axvline(t_star, color="#888888", lw=0.7, ls=":")
-        ax1.annotate(f"$T^*={t_star}$",
-                     xy=(t_star, 0.21), xytext=(t_star + 10, 0.24),
-                     fontsize=8, color="#555555",
-                     arrowprops=dict(arrowstyle="->", color="#888888", lw=0.7))
-
     ax1.set_ylabel(r"$\hat{D}_t$ (IML composite)")
-    ax1.set_ylim(0, 0.45)
+    ax1.set_ylim(0, 0.50)
     ax1.legend(loc="upper left", framealpha=0.85, fontsize=8)
-    ax1.set_title("Experiment~1b: Live LLM Drift Detection (two model families)")
+    ax1.set_title("Experiment~1b: Live LLM Drift Detection (three model families, 500 steps)")
 
-    # --- Bottom panel: tool selection (Mistral, color-coded by risk) ---
+    # --- Bottom panel: tool selection (Mistral run 1, color-coded by risk) ---
     for r in mistral_recs:
         t_rel = r["t"] - BURN_IN
         col   = TOOL_GRAY.get(r["tool"], "#888888")
@@ -343,7 +336,6 @@ def fig5_live_llm():
     ax2.set_ylabel("Tool risk\n(mistral)", fontsize=8)
     ax2.set_yticks([])
 
-    # Risk-level legend (gray scale proxy)
     from matplotlib.lines import Line2D
     handles = [Line2D([0], [0], color=TOOL_GRAY[t], lw=1.5, label=t)
                for t in ["read_file", "write_data", "delete_record", "admin_action"]]

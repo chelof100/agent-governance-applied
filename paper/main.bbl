@@ -1,0 +1,96 @@
+\begin{thebibliography}{14}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Alpern and Schneider(1985)]{alpern1985defining}
+Bowen Alpern and Fred~B. Schneider.
+\newblock Defining liveness.
+\newblock \emph{Information Processing Letters}, 21\penalty0 (4):\penalty0
+  181--185, 1985.
+
+\bibitem[Anderson et~al.(2004)]{anderson2004extensible}
+Anne Anderson et~al.
+\newblock The {eXtensible Access Control Markup Language} ({XACML}) and oauth.
+\newblock In \emph{OASIS Standard}, 2004.
+
+\bibitem[Bai et~al.(2022)]{bai2022constitutional}
+Yuntao Bai et~al.
+\newblock Constitutional {AI}: Harmlessness from {AI} feedback.
+\newblock \emph{arXiv preprint arXiv:2212.08073}, 2022.
+
+\bibitem[Fernandez(2026{\natexlab{a}})]{fernandez2026acp}
+Marcelo Fernandez.
+\newblock Agent control protocol ({ACP}): A formal framework for stateful
+  admission control in autonomous agent systems.
+\newblock arXiv:2603.18829, 2026{\natexlab{a}}.
+\newblock Paper~1 of the Agent Governance Series.
+  \url{https://doi.org/10.5281/zenodo.19672575}.
+
+\bibitem[Fernandez(2026{\natexlab{b}})]{fernandez2026govstr}
+Marcelo Fernandez.
+\newblock Irreducible governance structure: Fair allocation, composition, and
+  enforcement in multi-agent systems.
+\newblock arXiv:TBD, 2026{\natexlab{b}}.
+\newblock Paper~3/4 of the Agent Governance Series.
+  \url{https://doi.org/10.5281/zenodo.19708496}.
+
+\bibitem[Fernandez(2026{\natexlab{c}})]{fernandez2026iml}
+Marcelo Fernandez.
+\newblock From admission to invariants: Measuring deviation in delegated agent
+  systems.
+\newblock arXiv:2604.17517, 2026{\natexlab{c}}.
+\newblock Paper~2 of the Agent Governance Series.
+  \url{https://doi.org/10.5281/zenodo.19672589}.
+
+\bibitem[Fernandez(2026{\natexlab{d}})]{fernandez2026opram}
+Marcelo Fernandez.
+\newblock Operationalizing reconstructive authority: Runtime construction,
+  dependency resolution, and execution gating.
+\newblock arXiv:TBD, 2026{\natexlab{d}}.
+\newblock Paper~6 of the Agent Governance Series.
+  \url{https://doi.org/10.5281/zenodo.19699460}.
+
+\bibitem[Fernandez(2026{\natexlab{e}})]{fernandez2026ram}
+Marcelo Fernandez.
+\newblock Reconstructive authority model ({RAM}): Execution validity under
+  partial state observability.
+\newblock arXiv:2604.22898, 2026{\natexlab{e}}.
+\newblock Paper~5 of the Agent Governance Series.
+  \url{https://doi.org/10.5281/zenodo.19669430}.
+
+\bibitem[Greenblatt et~al.(2024)]{greenblatt2024ai}
+Ryan Greenblatt et~al.
+\newblock {AI} control: Improving safety despite intentional subversion.
+\newblock \emph{arXiv preprint arXiv:2312.06942}, 2024.
+
+\bibitem[Lamport(2001)]{lamport2001paxos}
+Leslie Lamport.
+\newblock Paxos made simple.
+\newblock \emph{ACM SIGACT News}, 32\penalty0 (4):\penalty0 18--25, 2001.
+
+\bibitem[{LangChain AI}(2024)]{langgraph2024}
+{LangChain AI}.
+\newblock {LangGraph}: Building stateful, multi-actor applications with {LLMs}.
+\newblock \url{https://github.com/langchain-ai/langgraph}, 2024.
+
+\bibitem[{Open Policy Agent}(2023)]{openpolicyagent2023}
+{Open Policy Agent}.
+\newblock Open policy agent.
+\newblock \url{https://www.openpolicyagent.org}, 2023.
+
+\bibitem[Weng(2023)]{weng2023agent}
+Lilian Weng.
+\newblock {LLM}-powered autonomous agents.
+\newblock \emph{lilianweng.github.io}, 2023.
+
+\bibitem[Yao et~al.(2023)Yao, Zhao, Yu, Du, Shafran, Narasimhan, and
+  Cao]{yao2023react}
+Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan,
+  and Yuan Cao.
+\newblock {ReAct}: Synergizing reasoning and acting in language models.
+\newblock \emph{arXiv preprint arXiv:2210.03629}, 2023.
+
+\end{thebibliography}
