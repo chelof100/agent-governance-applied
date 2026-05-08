@@ -22,6 +22,7 @@ Output:
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -53,6 +54,15 @@ THETA    = 0.20
 
 OUT_DIR = os.path.join(_ROOT, "results", "p8_apb", "exp_a")
 
+# Policy variants: name -> (deny_above, recalibrate_above)
+# default     — original thresholds (deny rare, demonstrates T8.1 with mostly RESUME)
+# low_thresh  — calibrated to typical D_hat range (~0.27-0.34) so all three
+#               GovernanceDecision values are exercised in the same dataset.
+POLICY_VARIANTS = {
+    "default":    {"deny_above": 0.40, "recalibrate_above": 0.70},
+    "low_thresh": {"deny_above": 0.25, "recalibrate_above": 0.32},
+}
+
 
 # ---------------------------------------------------------------------------
 # Helpers: serializable views of runtime state for E_s construction
@@ -80,7 +90,7 @@ def _trace_view(trace: Trace, t: int) -> dict:
 # ---------------------------------------------------------------------------
 
 def run_seed(seed: int, registry: PrincipalRegistry, key_store: dict[str, bytes],
-             apb_log: list) -> dict:
+             apb_log: list, policy_cfg: dict) -> dict:
     llm  = MockLLM(seed=seed)
     app  = build_graph(llm)
     trace = Trace(trace_id=f"exp_a_s{seed}")
@@ -94,7 +104,10 @@ def run_seed(seed: int, registry: PrincipalRegistry, key_store: dict[str, bytes]
     rec_loop = RecoveryLoop(max_attempts=5, base_coverage=0.30,
                             delta_coverage=0.15, seed=seed)
     gov = GovernanceLayer(registry, key_store)
-    policy = threshold_policy(deny_above=0.4, recalibrate_above=0.7)
+    policy = threshold_policy(
+        deny_above=policy_cfg["deny_above"],
+        recalibrate_above=policy_cfg["recalibrate_above"],
+    )
 
     iml: IMLMonitor = None
     A0: AdmissionSnapshotP7 = None
@@ -197,41 +210,35 @@ def run_seed(seed: int, registry: PrincipalRegistry, key_store: dict[str, bytes]
 # Main
 # ---------------------------------------------------------------------------
 
-def main():
-    os.makedirs(OUT_DIR, exist_ok=True)
+def run_variant(variant: str, registry: PrincipalRegistry,
+                key_store: dict[str, bytes]) -> dict:
+    """Run all seeds for one policy variant. Returns aggregate summary."""
+    cfg = POLICY_VARIANTS[variant]
+    var_dir = os.path.join(OUT_DIR, variant)
+    os.makedirs(var_dir, exist_ok=True)
 
-    # Bootstrap: one principal H_alice (Exp A focuses on the Completeness
-    # path, not multi-principal authorization).
-    sk_alice, pk_alice = generate_keypair()
-    registry = PrincipalRegistry()
-    registry.add(Principal(H_id="H_alice", public_key=pk_alice, role="auditor"))
-    key_store = {"H_alice": sk_alice}
-
-    print("=" * 64)
-    print("Exp A -- Governance Completeness (T8.1)")
-    print(f"  Seeds: {SEEDS}")
-    print(f"  Steps per seed: {TOTAL} (burn-in={BURN_IN}, drift={DRIFT})")
-    print(f"  Coverage: {COVERAGE}  theta: {THETA}")
-    print("=" * 64)
+    print(f"\n{'=' * 64}")
+    print(f"Variant: {variant}  policy={cfg}")
+    print(f"{'=' * 64}")
 
     apb_log: list = []
     per_seed: list = []
     for seed in SEEDS:
         print(f"\n[seed={seed}] running...")
-        r = run_seed(seed, registry, key_store, apb_log)
+        r = run_seed(seed, registry, key_store, apb_log, cfg)
         per_seed.append(r)
         c = r["counters"]
+        d = r["apb_decisions"]
         print(f"  halts={c['halt_events']:4d}  "
               f"rec_resume={c['recovery_resume']:4d}  "
               f"apb={c['apb_signed']:4d}  "
-              f"neither={c['neither']}")
+              f"neither={c['neither']}  "
+              f"|  RESUME={d['RESUME']} DENY={d['DENY']} RECAL={d['RECALIBRATE']}")
 
-    # Aggregate
     agg = {k: 0 for k in per_seed[0]["counters"]}
     for r in per_seed:
         for k, v in r["counters"].items():
             agg[k] += v
-
     apb_decision_agg = {"RESUME": 0, "DENY": 0, "RECALIBRATE": 0}
     for r in per_seed:
         for k, v in r["apb_decisions"].items():
@@ -245,6 +252,8 @@ def main():
 
     summary = {
         "experiment": "p8_exp_a_governance_completeness",
+        "variant": variant,
+        "policy": cfg,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "seeds": SEEDS,
         "steps_per_seed": TOTAL,
@@ -259,38 +268,55 @@ def main():
         "T8_1_assertion": "PASSED" if completeness_holds else "FAILED",
     }
 
-    # Write outputs
-    summary_path = os.path.join(OUT_DIR, "exp_a_summary.json")
-    apb_path = os.path.join(OUT_DIR, "exp_a_apb_log.jsonl")
-    table_path = os.path.join(OUT_DIR, "exp_a_table.tex")
-
-    with open(summary_path, "w") as f:
+    with open(os.path.join(var_dir, "exp_a_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
-    with open(apb_path, "w") as f:
-        for entry in apb_log:
-            f.write(json.dumps(entry) + "\n")
-    _write_latex_table(per_seed, agg, completeness_holds, table_path)
+    with open(os.path.join(var_dir, "exp_a_apb_log.jsonl"), "w") as f:
+        for e in apb_log:
+            f.write(json.dumps(e) + "\n")
+    _write_latex_table(per_seed, agg, completeness_holds,
+                       os.path.join(var_dir, "exp_a_table.tex"), variant)
 
-    # ── Final report ─────────────────────────────────────────────────────────
-    print("\n" + "=" * 64)
-    print("AGGREGATE RESULTS")
-    print(f"  Total HALT events:        {agg['halt_events']}")
-    print(f"  Recovery RESUME:          {agg['recovery_resume']}")
-    print(f"  APB-signed (governance):  {agg['apb_signed']}")
-    print(f"  NEITHER (T8.1 violation): {agg['neither']}")
-    print(f"  Resolution coverage:      {coverage_pct:.2f}%")
-    print(f"  APB decisions: RESUME={apb_decision_agg['RESUME']}  "
-          f"DENY={apb_decision_agg['DENY']}  "
-          f"RECALIBRATE={apb_decision_agg['RECALIBRATE']}")
-    print(f"\n  T8.1 (Governance Completeness): "
-          f"{'PASSED' if completeness_holds else 'FAILED'}")
-    print("=" * 64)
-    print(f"\nOutputs:\n  {summary_path}\n  {apb_path}\n  {table_path}")
-
-    return 0 if completeness_holds else 1
+    print(f"\n[{variant}] AGGREGATE")
+    print(f"  HALTs: {agg['halt_events']}  rec_resume: {agg['recovery_resume']}  "
+          f"apb: {agg['apb_signed']}  neither: {agg['neither']}")
+    print(f"  APB decisions:  RESUME={apb_decision_agg['RESUME']}  "
+          f"DENY={apb_decision_agg['DENY']}  RECAL={apb_decision_agg['RECALIBRATE']}")
+    print(f"  T8.1: {'PASSED' if completeness_holds else 'FAILED'}")
+    return summary
 
 
-def _write_latex_table(per_seed, agg, holds, path):
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--variant", default="both",
+                        choices=["default", "low_thresh", "both"])
+    args = parser.parse_args()
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+
+    sk_alice, pk_alice = generate_keypair()
+    registry = PrincipalRegistry()
+    registry.add(Principal(H_id="H_alice", public_key=pk_alice, role="auditor"))
+    key_store = {"H_alice": sk_alice}
+
+    print("Exp A -- Governance Completeness (T8.1)")
+    print(f"  Seeds: {SEEDS}  Steps/seed: {TOTAL} (burn-in={BURN_IN}, drift={DRIFT})")
+    print(f"  Coverage: {COVERAGE}  theta: {THETA}")
+
+    variants = ["default", "low_thresh"] if args.variant == "both" else [args.variant]
+    summaries = {v: run_variant(v, registry, key_store) for v in variants}
+
+    if len(summaries) > 1:
+        _write_comparison_table(summaries, os.path.join(OUT_DIR, "exp_a_policy_comparison.tex"))
+        with open(os.path.join(OUT_DIR, "exp_a_policy_comparison.json"), "w") as f:
+            json.dump({v: s["aggregate"] | {"apb_decisions": s["apb_decision_breakdown"]}
+                       for v, s in summaries.items()}, f, indent=2)
+        print(f"\nComparison table: {OUT_DIR}/exp_a_policy_comparison.tex")
+
+    all_holds = all(s["completeness_holds"] for s in summaries.values())
+    return 0 if all_holds else 1
+
+
+def _write_latex_table(per_seed, agg, holds, path, variant=""):
     rows = []
     for r in per_seed:
         c = r["counters"]
@@ -307,15 +333,54 @@ def _write_latex_table(per_seed, agg, holds, path):
     )
     body = "\n".join(rows)
     status = "PASSED" if holds else "FAILED"
+    suffix = f" ({variant} policy)" if variant else ""
     tex = f"""% Auto-generated by exp_a_governance_completeness.py
 \\begin{{table}}[t]
 \\centering
-\\caption{{Governance Completeness (T8.1): every HALT resolves through Recovery
+\\caption{{Governance Completeness (T8.1){suffix}: every HALT resolves through Recovery
 or a signed APB. NEITHER count is 0 across all seeds (assertion {status}).}}
-\\label{{tab:exp_a_completeness}}
+\\label{{tab:exp_a_completeness_{variant or "default"}}}
 \\begin{{tabular}}{{rrrrr}}
 \\toprule
 Seed & HALTs & Recovery RESUME & APB-signed & NEITHER \\\\
+\\midrule
+{body}
+\\bottomrule
+\\end{{tabular}}
+\\end{{table}}
+"""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(tex)
+
+
+def _write_comparison_table(summaries: dict, path: str) -> None:
+    """Side-by-side policy comparison: same Completeness result, different decision mix."""
+    rows = []
+    for variant, s in summaries.items():
+        cfg = s["policy"]
+        agg = s["aggregate"]
+        d = s["apb_decision_breakdown"]
+        rows.append(
+            f"  {variant.replace('_', '\\_')} & "
+            f"({cfg['deny_above']:.2f},{cfg['recalibrate_above']:.2f}) & "
+            f"{agg['halt_events']} & "
+            f"{agg['recovery_resume']} & "
+            f"{agg['apb_signed']} & "
+            f"{d['RESUME']}/{d['DENY']}/{d['RECALIBRATE']} & "
+            f"{agg['neither']} \\\\"
+        )
+    body = "\n".join(rows)
+    tex = f"""% Auto-generated by exp_a_governance_completeness.py
+\\begin{{table}}[t]
+\\centering
+\\caption{{Policy sensitivity in Exp A: T8.1 (Governance Completeness) holds
+identically under both threshold policies. The APB decision distribution
+varies with policy parameters; Completeness is policy-agnostic.}}
+\\label{{tab:exp_a_policy_comparison}}
+\\begin{{tabular}}{{lcrrrcr}}
+\\toprule
+Policy & $(\\theta_d,\\theta_r)$ & HALTs & Rec.\\ RESUME & APB-signed
+       & RES/DENY/RECAL & NEITHER \\\\
 \\midrule
 {body}
 \\bottomrule

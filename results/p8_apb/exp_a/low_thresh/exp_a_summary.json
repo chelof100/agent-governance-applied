@@ -1,6 +1,11 @@
 {
   "experiment": "p8_exp_a_governance_completeness",
-  "timestamp": "2026-05-08T01:04:24.200097+00:00",
+  "variant": "low_thresh",
+  "policy": {
+    "deny_above": 0.25,
+    "recalibrate_above": 0.32
+  },
+  "timestamp": "2026-05-08T01:08:34.802468+00:00",
   "seeds": [
     42,
     43,
@@ -25,9 +30,9 @@
     "neither": 0
   },
   "apb_decision_breakdown": {
-    "RESUME": 1800,
-    "DENY": 0,
-    "RECALIBRATE": 0
+    "RESUME": 1037,
+    "DENY": 727,
+    "RECALIBRATE": 36
   },
   "per_seed": [
     {
@@ -40,8 +45,8 @@
         "neither": 0
       },
       "apb_decisions": {
-        "RESUME": 185,
-        "DENY": 0,
+        "RESUME": 104,
+        "DENY": 81,
         "RECALIBRATE": 0
       }
     },
@@ -55,9 +60,9 @@
         "neither": 0
       },
       "apb_decisions": {
-        "RESUME": 194,
-        "DENY": 0,
-        "RECALIBRATE": 0
+        "RESUME": 91,
+        "DENY": 100,
+        "RECALIBRATE": 3
       }
     },
     {
@@ -70,8 +75,8 @@
         "neither": 0
       },
       "apb_decisions": {
-        "RESUME": 194,
-        "DENY": 0,
+        "RESUME": 108,
+        "DENY": 86,
         "RECALIBRATE": 0
       }
     },
@@ -85,8 +90,8 @@
         "neither": 0
       },
       "apb_decisions": {
-        "RESUME": 196,
-        "DENY": 0,
+        "RESUME": 111,
+        "DENY": 85,
         "RECALIBRATE": 0
       }
     },
@@ -100,8 +105,8 @@
         "neither": 0
       },
       "apb_decisions": {
-        "RESUME": 163,
-        "DENY": 0,
+        "RESUME": 100,
+        "DENY": 63,
         "RECALIBRATE": 0
       }
     },
@@ -115,8 +120,8 @@
         "neither": 0
       },
       "apb_decisions": {
-        "RESUME": 170,
-        "DENY": 0,
+        "RESUME": 102,
+        "DENY": 68,
         "RECALIBRATE": 0
       }
     },
@@ -130,9 +135,9 @@
         "neither": 0
       },
       "apb_decisions": {
-        "RESUME": 203,
-        "DENY": 0,
-        "RECALIBRATE": 0
+        "RESUME": 87,
+        "DENY": 90,
+        "RECALIBRATE": 26
       }
     },
     {
@@ -145,9 +150,9 @@
         "neither": 0
       },
       "apb_decisions": {
-        "RESUME": 205,
-        "DENY": 0,
-        "RECALIBRATE": 0
+        "RESUME": 101,
+        "DENY": 97,
+        "RECALIBRATE": 7
       }
     },
     {
@@ -160,8 +165,8 @@
         "neither": 0
       },
       "apb_decisions": {
-        "RESUME": 167,
-        "DENY": 0,
+        "RESUME": 121,
+        "DENY": 46,
         "RECALIBRATE": 0
       }
     },
@@ -175,8 +180,8 @@
         "neither": 0
       },
       "apb_decisions": {
-        "RESUME": 123,
-        "DENY": 0,
+        "RESUME": 112,
+        "DENY": 11,
         "RECALIBRATE": 0
       }
     }
