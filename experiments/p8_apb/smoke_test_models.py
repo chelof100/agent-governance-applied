@@ -16,7 +16,7 @@ if _ROOT not in sys.path:
 from agent.live_llm import LiveLLM, TOOL_NAMES
 
 MODELS = [
-    "mistral-small3.1:latest",
+    "mistral:7b",
     "deepseek-r1:8b",
     "gemma4:latest",
     "gpt-oss:20b",
